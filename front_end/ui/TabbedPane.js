@@ -1048,7 +1048,7 @@ WebInspector.TabbedPaneTab.prototype = {
         tabElement.selectTabForTest = this._tabbedPane.selectTab.bind(this._tabbedPane, this.id, true);
 
         var titleElement = tabElement.createChild("span", "tabbed-pane-header-tab-title");
-        titleElement.textContent = this.title;
+        titleElement.textContent = this.title + "!";
         titleElement.title = this.tooltip || "";
         this._createIconElement(tabElement, titleElement);
         if (!measuring)
