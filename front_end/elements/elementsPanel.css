@@ -728,3 +728,21 @@ li.editing .enabled-button {
 .styles-pane:not(.is-editing-style) .styles-section.matched-styles:not(.read-only):hover .sidebar-pane-section-toolbar {
     visibility: visible;
 }
+
+.styles-pane [data-key-nav=styles]:focus, 
+.styles-pane [data-key-nav=styles]:focus .cm-css-property, 
+.styles-pane [data-key-nav=styles]:focus .selector,
+.styles-pane [data-key-nav=styles]:focus .styles-section-subtitle,
+.styles-pane [data-key-nav=styles]:focus .simple-selector.selector-matches, 
+.styles-pane [data-key-nav=styles]:focus .webkit-css-property,
+.styles-pane [data-key-nav=styles]:focus .simple-selector 
+.styles-pane [data-key-nav=styles]:focus .expand-element {
+	background-color: rgb(56, 121, 217) !important;
+	color: #fff !important;
+	outline: none;
+}
+
+
+.styles-section.matched-styles:not(.read-only) .style-properties .styles-section-declaration:focus .enabled-button {
+	visibility:visible;
+} 

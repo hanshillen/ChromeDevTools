@@ -153,7 +153,7 @@ TreeOutline.prototype = {
     setFocusable: function(focusable)
     {
         if (focusable)
-           ;//this.contentElement.setAttribute("tabIndex", 0);
+           this.contentElement.setAttribute("tabIndex", 0);
         else
             this.contentElement.removeAttribute("tabIndex");
     },
@@ -373,7 +373,6 @@ function TreeElement(title, expandable)
     this._listItemNode.addEventListener("dblclick", this._handleDoubleClick.bind(this), false);
 
     this._childrenListNode = createElement("ol");
-    this._childrenListNode.setAttribute("data-test", "test");
     this._childrenListNode.parentTreeElement = this;
     this._childrenListNode.classList.add("children");
 

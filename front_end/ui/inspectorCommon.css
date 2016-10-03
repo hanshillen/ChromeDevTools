@@ -49,13 +49,16 @@
 /* SCAFFOLDING FOR FOCUS TRACKING, DON'T CHECK IN*/
 :focus {
  
-    /*outline: none;*/
+    outline: none;
+    /*
+    outline: 1px solid #CCC;
     outline-color: #094a6b;
-    outline-offset: -5px;
+    outline-offset: -5px;*/
 }
 
-.style-panes-wrapper :focus {
-    outline-offset: 0;
+button:focus {
+	outline: 1px solid #CCC !important;
+    outline-offset: -4px;
 }
 
 .sidebar-separator:focus {

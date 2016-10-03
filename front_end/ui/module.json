@@ -28,7 +28,7 @@
         "Infobar.js",
         "InplaceEditor.js",
         "TextEditor.js",
-        "KeyboardAccessibility.js",
+		"KeyboardAccessibility.js",
         "KeyboardShortcut.js",
         "ListWidget.js",
         "Panel.js",

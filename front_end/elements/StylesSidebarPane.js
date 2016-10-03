@@ -555,7 +555,8 @@ WebInspector.SectionBlock.createPseudoTypeBlock = function(pseudoType)
 {
     var separatorElement = createElement("div");
     separatorElement.className = "sidebar-separator";
-    separatorElement.tabIndex = 0;
+    separatorElement.tabIndex = -1;
+    separatorElement.dataset.keyNav = "styles";
     separatorElement.textContent = WebInspector.UIString("Pseudo ::%s element", pseudoType);
     return new WebInspector.SectionBlock(separatorElement);
 }
@@ -568,7 +569,7 @@ WebInspector.SectionBlock.createKeyframesBlock = function(keyframesName)
 {
     var separatorElement = createElement("div");
     separatorElement.className = "sidebar-separator";
-    separatorElement.tabIndex = 0;
+    separatorElement.tabIndex = -1;
     separatorElement.textContent = WebInspector.UIString("@keyframes " + keyframesName);
     return new WebInspector.SectionBlock(separatorElement);
 }
@@ -581,8 +582,10 @@ WebInspector.SectionBlock.createInheritedNodeBlock = function(node)
 {
     var separatorElement = createElement("div");
     separatorElement.className = "sidebar-separator";
-    separatorElement.tabIndex = 0;
+    separatorElement.tabIndex = -1;
+    separatorElement.dataset.keyNav = "styles";
     var link = WebInspector.DOMPresentationUtils.linkifyNodeReference(node);
+    link.classList.add("styles-inherited-link");
     separatorElement.createTextChild(WebInspector.UIString("Inherited from") + " ");
     separatorElement.appendChild(link);
     return new WebInspector.SectionBlock(separatorElement);
@@ -625,9 +628,13 @@ WebInspector.StylePropertiesSection = function(parentPane, matchedStyles, style)
     this.element._section = this;
 
     this._titleElement = this.element.createChild("div", "styles-section-title " + (rule ? "styles-selector" : ""));
-    this._titleElement.tabIndex = 0;
-
-    this.propertiesTreeOutline = new TreeOutline();
+    this._titleElement.tabIndex = -1;
+    this._titleElement.dataset.keyNav = "styles";
+    if (this._style.type === WebInspector.CSSStyleDeclaration.Type.Inline) {
+        this.element.classList.add("inline-styles-section");
+        this._titleElement.tabIndex = 0;
+    }
+    this.propertiesTreeOutline = new TreeOutline(true);
     this.propertiesTreeOutline.element.classList.add("style-properties", "monospace");
     this.propertiesTreeOutline.section = this;
     this.element.appendChild(this.propertiesTreeOutline.element);
@@ -2169,8 +2176,19 @@ WebInspector.StylePropertyTreeElement.prototype = {
             if (!success)
                 return;
             this._matchedStyles.resetActiveProperties();
+
+            var parentGroup = this.parent;
+            var propertyIndex = parentGroup._children.indexOf(this);
+            var resetFocus = WebInspector.KeyboardAccessibility.isMarkedForRefocus(this._listItemNode);
             this._updatePane();
             this.styleTextAppliedForTest();
+            if (resetFocus) {
+                if (parentGroup._children.length > propertyIndex) {
+                    var listItemNode = parentGroup._children[propertyIndex]._listItemNode;
+                    WebInspector.KeyboardAccessibility.focus(listItemNode);
+                }
+            }
+            return;
         }
 
         event.consume();
@@ -2254,7 +2272,8 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this.listItemElement.removeChildren();
         this.nameElement = propertyRenderer.renderName();
         this.listItemElement.classList.add("styles-section-declaration");
-        this.listItemElement.tabIndex = 0;
+        this.listItemElement.tabIndex = -1;
+        this.listItemElement.dataset.keyNav = "styles";
         this.valueElement = propertyRenderer.renderValue();
         if (!this.treeOutline)
             return;
@@ -2488,7 +2507,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
         if (isEnterKey(event)) {
             event.preventDefault();
-            result = "forward";
+            result = WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) ? "commit" : "forward";
         } else if (event.keyCode === WebInspector.KeyboardShortcut.Keys.Esc.code || event.key === "Escape")
             result = "cancel";
         else if (!context.isEditingName && this._newProperty && event.keyCode === WebInspector.KeyboardShortcut.Keys.Backspace.code) {
@@ -2505,6 +2524,18 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
         if (result) {
             switch (result) {
+            case "commit":
+                var parentGroup = this.parent;
+                var index =  this.treeOutline.rootElement().indexOfChild(this);
+                this.editingCommitted(event.target.textContent, context, "");
+                    setTimeout(function(){
+                        if (parentGroup._children.length > index) {
+                            var listItemNode = parentGroup._children[index]._listItemNode;
+                            WebInspector.KeyboardAccessibility.focus(listItemNode);
+                        }
+                    }, 100);
+
+                break;
             case "cancel":
                 this.editingCancelled(null, context);
                 break;
@@ -2607,6 +2638,10 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this._revertStyleUponEditingCanceled();
         // This should happen last, as it clears the info necessary to restore the property value after [Page]Up/Down changes.
         this.editingEnded(context);
+        if (WebInspector.KeyboardAccessibility.isMarkedForRefocus()) {
+            WebInspector.KeyboardAccessibility.focus(this._listItemNode);
+            WebInspector.KeyboardAccessibility.unmarkAsRefocus(this._listItemNode);
+        }
     },
 
     _revertStyleUponEditingCanceled: function()

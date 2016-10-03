@@ -92,7 +92,10 @@
 }
 
 .tabbed-pane-header-tab:hover,
-.tabbed-pane-header-tab.selected:hover {
+.tabbed-pane-header-tab.selected:hover,
+.tabbed-pane-header-tab:focus,
+.tabbed-pane-header-tab.selected:focus
+ {
     color: #333;
     background-color: #e5e5e5;
 }

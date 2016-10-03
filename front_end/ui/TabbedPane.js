@@ -771,6 +771,7 @@ WebInspector.TabbedPane.prototype = {
     {
         tab.tabElement.classList.add("selected");
         tab.tabElement.setAttribute("aria-selected", "true");
+        tab.tabElement.tabIndex = 0;
         tab.view.showWidget(this.element);
         this._updateTabSlider();
     },
@@ -798,6 +799,7 @@ WebInspector.TabbedPane.prototype = {
     {
         tab.tabElement.classList.remove("selected");
         tab.tabElement.setAttribute("aria-selected", "false");
+        tab.tabElement.tabIndex = -1;
         tab.view.hideWidget();
     },
 
@@ -1044,6 +1046,8 @@ WebInspector.TabbedPaneTab.prototype = {
         tabElement.id = "tab-" + this._id;
         tabElement.tabIndex = -1;
         tabElement.setAttribute("role", "tab");
+        tabElement.dataset.keyNav = "tabs";
+        tabElement.tabIndex = -1;
         tabElement.setAttribute("aria-selected", "false");
         tabElement.selectTabForTest = this._tabbedPane.selectTab.bind(this._tabbedPane, this.id, true);
 
