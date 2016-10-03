@@ -2638,7 +2638,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this._revertStyleUponEditingCanceled();
         // This should happen last, as it clears the info necessary to restore the property value after [Page]Up/Down changes.
         this.editingEnded(context);
-        if (WebInspector.KeyboardAccessibility.isMarkedForRefocus()) {
+        if (WebInspector.KeyboardAccessibility.isMarkedForRefocus(this._listItemNode)) {
             WebInspector.KeyboardAccessibility.focus(this._listItemNode);
             WebInspector.KeyboardAccessibility.unmarkAsRefocus(this._listItemNode);
         }
