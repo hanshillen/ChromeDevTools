@@ -204,6 +204,9 @@ WebInspector.ConsoleViewMessage.prototype = {
                     if (url) {
                         var isExternal = !WebInspector.resourceForURL(url) && !WebInspector.networkMapping.uiSourceCodeForURLForAnyTarget(url);
                         this._anchorElement = WebInspector.linkifyURLAsNode(url, url, "console-message-url", isExternal);
+                        this._anchorElement.dataset.logRowObject = '';
+                        this._anchorElement.dataset.keyNav = 'log';
+                        this._anchorElement.tabIndex= -1;
                     }
                     this._messageElement = this._format([consoleMessage.messageText]);
                 }
@@ -228,7 +231,9 @@ WebInspector.ConsoleViewMessage.prototype = {
         if (this._anchorElement) {
             // Append a space to prevent the anchor text from being glued to the console message when the user selects and copies the console messages.
             this._anchorElement.appendChild(createTextNode(" "));
-            this._formattedMessage.insertBefore(this._anchorElement, this._formattedMessage.firstChild);
+            //TODO: had to add the link to the end of the message for a11y reading order purposes, side effects?
+            //this._formattedMessage.insertBefore(this._anchorElement, this._formattedMessage.firstChild);
+            this._formattedMessage.appendChild(this._anchorElement);
         }
 
         var dumpStackTrace = !!consoleMessage.stackTrace && (consoleMessage.source === WebInspector.ConsoleMessage.MessageSource.Network || consoleMessage.level === WebInspector.ConsoleMessage.MessageLevel.Error || consoleMessage.level === WebInspector.ConsoleMessage.MessageLevel.RevokedError || consoleMessage.type === WebInspector.ConsoleMessage.MessageType.Trace || consoleMessage.level === WebInspector.ConsoleMessage.MessageLevel.Warning);
@@ -236,6 +241,9 @@ WebInspector.ConsoleViewMessage.prototype = {
         if (dumpStackTrace && target) {
             var toggleElement = createElementWithClass("div", "console-message-stack-trace-toggle");
             var triangleElement = toggleElement.createChild("div", "console-message-stack-trace-triangle");
+            triangleElement.dataset.logRowObject = '';
+            triangleElement.dataset.keyNav = 'log';
+            triangleElement.tabIndex = -1;
             var contentElement = toggleElement.createChild("div", "console-message-stack-trace-wrapper");
 
             var clickableElement = contentElement.createChild("div");
@@ -307,7 +315,11 @@ WebInspector.ConsoleViewMessage.prototype = {
         var target = this._target();
         if (!target)
             return null;
-        return this._linkifier.linkifyStackTraceTopFrame(target, stackTrace, "console-message-url");
+        var link = this._linkifier.linkifyStackTraceTopFrame(target, stackTrace, "console-message-url");
+        link.dataset.logRowObject = '';
+        link.dataset.keyNav = 'log';
+        link.tabIndex = -1;
+        return link;
     },
 
     /**
@@ -399,6 +411,9 @@ WebInspector.ConsoleViewMessage.prototype = {
         var span = createElement("span");
         span.className = "object-value-" + type + " source-code";
         formatter.call(this, output, span, includePreview);
+        span.tabIndex = -1;
+        span.dataset.logRowObject = '';
+        span.dataset.keyNav = 'log';
         return span;
     },
 
@@ -445,6 +460,7 @@ WebInspector.ConsoleViewMessage.prototype = {
 
         var section = new WebInspector.ObjectPropertiesSection(obj, titleElement, this._linkifier);
         section.element.classList.add("console-view-object-properties-section");
+        section.element.dataset.shadowHost = '';
         section.enableContextMenu();
         elem.appendChild(section.element);
     },
@@ -700,6 +716,7 @@ WebInspector.ConsoleViewMessage.prototype = {
 
         var section = new WebInspector.ObjectPropertiesSection(array, titleElement, this._linkifier);
         section.element.classList.add("console-view-object-properties-section");
+        section.element.dataset.shadowHost = '';
         section.enableContextMenu();
         elem.appendChild(section.element);
     },
@@ -953,9 +970,12 @@ WebInspector.ConsoleViewMessage.prototype = {
         var element = createElementWithClass("div", "console-message");
         this._element = element;
 
-        if (this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroup || this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroupCollapsed)
+        if (this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroup || this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroupCollapsed) {
             element.classList.add("console-group-title");
-
+            element.dataset.keyNav = "log";
+            element.dataset.logRowObject = "";
+            element.tabIndex="-1";
+        }
         element.appendChild(this.formattedMessage());
 
         if (this._repeatCount > 1)
@@ -985,6 +1005,10 @@ WebInspector.ConsoleViewMessage.prototype = {
             return;
 
         this._wrapperElement.className = "console-message-wrapper";
+        this._wrapperElement.dataset.keyNav = "log";
+        this._wrapperElement.dataset.logRow = '';
+        this._wrapperElement.tabIndex = 0;
+        
         this._wrapperElement.removeChildren();
 
         this._nestingLevelMarkers = [];

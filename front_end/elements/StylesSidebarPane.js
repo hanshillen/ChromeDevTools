@@ -553,10 +553,10 @@ WebInspector.SectionBlock = function(titleElement)
  */
 WebInspector.SectionBlock.createPseudoTypeBlock = function(pseudoType)
 {
-    var separatorElement = createElement("div");
-    separatorElement.className = "sidebar-separator";
+    var separatorElement = createElementWithClass("div", "sidebar-separator");
+    separatorElement.dataset.treeSeparator = ""
     separatorElement.tabIndex = -1;
-    separatorElement.dataset.keyNav = "styles";
+    separatorElement.dataset.keyNav = "tree";
     separatorElement.textContent = WebInspector.UIString("Pseudo ::%s element", pseudoType);
     return new WebInspector.SectionBlock(separatorElement);
 }
@@ -567,8 +567,9 @@ WebInspector.SectionBlock.createPseudoTypeBlock = function(pseudoType)
  */
 WebInspector.SectionBlock.createKeyframesBlock = function(keyframesName)
 {
-    var separatorElement = createElement("div");
-    separatorElement.className = "sidebar-separator";
+    var separatorElement = createElementWithClass("div", "sidebar-separator");
+    separatorElement.dataset.treeSeparator = "";
+    separatorElement.dataset.keyNav = "tree";
     separatorElement.tabIndex = -1;
     separatorElement.textContent = WebInspector.UIString("@keyframes " + keyframesName);
     return new WebInspector.SectionBlock(separatorElement);
@@ -580,12 +581,13 @@ WebInspector.SectionBlock.createKeyframesBlock = function(keyframesName)
  */
 WebInspector.SectionBlock.createInheritedNodeBlock = function(node)
 {
-    var separatorElement = createElement("div");
-    separatorElement.className = "sidebar-separator";
+    var separatorElement = createElementWithClass("div", "sidebar-separator");
+    separatorElement.dataset.treeSeparator = "";
     separatorElement.tabIndex = -1;
-    separatorElement.dataset.keyNav = "styles";
+    separatorElement.dataset.keyNav = "tree";
     var link = WebInspector.DOMPresentationUtils.linkifyNodeReference(node);
     link.classList.add("styles-inherited-link");
+    link.dataset.shadowHost = '';
     separatorElement.createTextChild(WebInspector.UIString("Inherited from") + " ");
     separatorElement.appendChild(link);
     return new WebInspector.SectionBlock(separatorElement);
@@ -625,22 +627,26 @@ WebInspector.StylePropertiesSection = function(parentPane, matchedStyles, style)
 
     var rule = style.parentRule;
     this.element = createElementWithClass("div", "styles-section matched-styles monospace");
+    this.element.dataset.treeSection = "";
+    this.element.dataset.keyNav = "tree";
     this.element._section = this;
 
     this._titleElement = this.element.createChild("div", "styles-section-title " + (rule ? "styles-selector" : ""));
     this._titleElement.tabIndex = -1;
-    this._titleElement.dataset.keyNav = "styles";
+    this._titleElement.dataset.treeGroupTitle = "";
+    this._titleElement.dataset.keyNav = "tree";
     if (this._style.type === WebInspector.CSSStyleDeclaration.Type.Inline) {
-        this.element.classList.add("inline-styles-section");
         this._titleElement.tabIndex = 0;
     }
     this.propertiesTreeOutline = new TreeOutline(true);
     this.propertiesTreeOutline.element.classList.add("style-properties", "monospace");
+    this.propertiesTreeOutline.element.setAttribute("data-tree-group", '');
     this.propertiesTreeOutline.section = this;
     this.element.appendChild(this.propertiesTreeOutline.element);
 
     var selectorContainer = createElement("div");
     this._selectorElement = createElementWithClass("span", "selector");
+    this._selectorElement.dataset.treeItemClickTarget = ''
     this._selectorElement.textContent = this._headerText();
     selectorContainer.appendChild(this._selectorElement);
     this._selectorElement.addEventListener("mouseenter", this._onMouseEnterSelector.bind(this), false);
@@ -2261,6 +2267,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this._updateState();
         this._expandElement = createElement("span");
         this._expandElement.className = "expand-element";
+        this._expandElement.dataset.treeExpander = '';
 
         var propertyRenderer = new WebInspector.StylesSidebarPropertyRenderer(this._style.parentRule, this.node(), this.name, this.value);
         if (this.property.parsedOk) {
@@ -2271,9 +2278,9 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
         this.listItemElement.removeChildren();
         this.nameElement = propertyRenderer.renderName();
-        this.listItemElement.classList.add("styles-section-declaration");
+        this.listItemElement.dataset.treeItem = '';
         this.listItemElement.tabIndex = -1;
-        this.listItemElement.dataset.keyNav = "styles";
+        this.listItemElement.dataset.keyNav = "tree";
         this.valueElement = propertyRenderer.renderValue();
         if (!this.treeOutline)
             return;
@@ -2302,6 +2309,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         if (this.property.parsedOk && this.section() && this.parent.root) {
             var enabledCheckboxElement = createElement("input");
             enabledCheckboxElement.className = "enabled-button";
+            enabledCheckboxElement.dataset.toggleControl = '';
             enabledCheckboxElement.type = "checkbox";
             enabledCheckboxElement.checked = !this.property.disabled;
             enabledCheckboxElement.addEventListener("click", this._toggleEnabled.bind(this), false);
@@ -3111,6 +3119,7 @@ WebInspector.StylesSidebarPropertyRenderer.prototype = {
     {
         var nameElement = createElement("span");
         nameElement.className = "webkit-css-property";
+        nameElement.dataset.treeItemClickTarget = '';
         nameElement.textContent = this._propertyName;
         nameElement.normalize();
         return nameElement;

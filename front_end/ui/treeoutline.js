@@ -364,6 +364,9 @@ function TreeElement(title, expandable)
     this.nextSibling = null;
 
     this._listItemNode = createElement("li");
+    this._listItemNode.dataset.shadowClickTarget = '';
+    this._listItemNode.dataset.keyNav = 'tree';
+    this._listItemNode.dataset.treeItem = '';
     this._listItemNode.treeElement = this;
     if (title)
         this.title = title;
@@ -375,6 +378,7 @@ function TreeElement(title, expandable)
     this._childrenListNode = createElement("ol");
     this._childrenListNode.parentTreeElement = this;
     this._childrenListNode.classList.add("children");
+    this._childrenListNode.dataset.treeGroup = "";
 
     this._hidden = false;
     this._selectable = true;
@@ -724,6 +728,7 @@ TreeElement.prototype = {
         this._expandable = expandable;
 
         this._listItemNode.classList.toggle("parent", expandable);
+        this._listItemNode.dataset.treeItemParent == '';
         if (!expandable)
             this.collapse();
     },
@@ -895,7 +900,6 @@ TreeElement.prototype = {
         // Set this before onpopulate. Since onpopulate can add elements, this makes
         // sure the expanded flag is true before calling those functions. This prevents the possibility
         // of an infinite loop if onpopulate were to call expand.
-
         this.expanded = true;
 
         this._populateIfNeeded();

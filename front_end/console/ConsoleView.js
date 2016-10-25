@@ -75,6 +75,13 @@ WebInspector.ConsoleView = function()
     toolbar.appendToolbarItem(this._executionContextComboBox);
     toolbar.appendToolbarItem(this._preserveLogCheckbox);
     toolbar.appendToolbarItem(this._progressToolbarItem);
+    
+    //TODO: handle this in KeyboardAccessibility
+    //TODO: /deep/ is deprecated, alternative?
+    let firstItem = toolbar.element.querySelector('* /deep/ [data-toolbar-item]');
+    if (firstItem) {
+        firstItem.tabIndex = 0;
+    }
 
     this._filterBar.show(this._contentsElement);
     this._filter.addFilters(this._filterBar);
@@ -82,6 +89,7 @@ WebInspector.ConsoleView = function()
     this._viewport = new WebInspector.ViewportControl(this);
     this._viewport.setStickToBottom(true);
     this._viewport.contentElement().classList.add("console-group", "console-group-messages");
+    this._viewport.contentElement().dataset.logGroup = '';
     this._contentsElement.appendChild(this._viewport.element);
     this._messagesElement = this._viewport.element;
     this._messagesElement.id = "console-messages";
@@ -712,8 +720,9 @@ WebInspector.ConsoleView.prototype = {
     _messagesClicked: function(event)
     {
         var targetElement = event.deepElementFromPoint();
+        
         if (!targetElement || targetElement.isComponentSelectionCollapsed())
-            this.focus();
+            ;//this.focus();
         var groupMessage = event.target.enclosingNodeOrSelfWithClass("console-group-title");
         if (!groupMessage)
             return;

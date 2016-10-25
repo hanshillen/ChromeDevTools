@@ -150,11 +150,17 @@ WebInspector.RemoteObjectPreviewFormatter.prototype = {
 
         if (type === "function") {
             span.textContent = "function";
+            span.tabIndex = -1;
+            span.dataset.logRowObject = '';
+            span.dataset.keyNav = 'log';
             return span;
         }
 
         if (type === "object" && subtype === "node" && description) {
             span.classList.add("object-value-preview-node");
+            span.tabIndex = -1;
+            span.dataset.logRowObject = '';
+            span.dataset.keyNav = 'log';
             WebInspector.DOMPresentationUtils.createSpansForNodeTitle(span, description);
             return span;
         }
@@ -166,6 +172,9 @@ WebInspector.RemoteObjectPreviewFormatter.prototype = {
 
         if (type === "object" && !subtype) {
             span.textContent = this._abbreviateFullQualifiedClassName(description);
+            span.tabIndex = -1;
+            span.dataset.logRowObject = '';
+            span.dataset.keyNav = 'log';
             return span;
         }
 

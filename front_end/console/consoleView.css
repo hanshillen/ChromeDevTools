@@ -482,3 +482,11 @@
 .console-message-stack-trace-toggle.expanded .console-message-stack-trace-triangle {
     -webkit-mask-position: -20px -96px;
 }
+
+.console-message-wrapper:focus, [data-log-row-object]:focus {
+	outline: 1px solid rgb(56, 121, 217) !important;
+}
+
+.console-message-stack-trace-triangle:focus {
+	background-color: rgb(56, 121, 217);
+}

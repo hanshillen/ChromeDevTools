@@ -729,14 +729,14 @@ li.editing .enabled-button {
     visibility: visible;
 }
 
-.styles-pane [data-key-nav=styles]:focus, 
-.styles-pane [data-key-nav=styles]:focus .cm-css-property, 
-.styles-pane [data-key-nav=styles]:focus .selector,
-.styles-pane [data-key-nav=styles]:focus .styles-section-subtitle,
-.styles-pane [data-key-nav=styles]:focus .simple-selector.selector-matches, 
-.styles-pane [data-key-nav=styles]:focus .webkit-css-property,
-.styles-pane [data-key-nav=styles]:focus .simple-selector 
-.styles-pane [data-key-nav=styles]:focus .expand-element {
+.styles-pane [data-key-nav=tree]:focus, 
+.styles-pane [data-key-nav=tree]:focus .cm-css-property, 
+.styles-pane [data-key-nav=tree]:focus .selector,
+.styles-pane [data-key-nav=tree]:focus .styles-section-subtitle,
+.styles-pane [data-key-nav=tree]:focus .simple-selector.selector-matches, 
+.styles-pane [data-key-nav=tree]:focus .webkit-css-property,
+.styles-pane [data-key-nav=tree]:focus .simple-selector 
+.styles-pane [data-key-nav=tree]:focus .expand-element {
 	background-color: rgb(56, 121, 217) !important;
 	color: #fff !important;
 	outline: none;

@@ -56,9 +56,12 @@
     outline-offset: -5px;*/
 }
 
-button:focus {
+[role=toolbar] button:focus, [role=toolbar] select:focus, input:focus {
 	outline: 1px solid #CCC !important;
-    outline-offset: -4px;
+	outline-offset: 0;
+}
+[role=toolbar] button:focus {
+	outline-offset: -4px;
 }
 
 .sidebar-separator:focus {

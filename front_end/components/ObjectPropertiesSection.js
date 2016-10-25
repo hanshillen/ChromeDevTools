@@ -181,6 +181,10 @@ WebInspector.ObjectPropertiesSection.RootElement = function(object, linkifier, e
     this.selectable = false;
     this.toggleOnClick = true;
     this.listItemElement.classList.add("object-properties-section-root-element");
+    this.listItemElement.dataset.keyNav = "tree";
+    this.listItemElement.dataset.treeRoot = "";
+    this.listItemElement.dataset.shadowClickTarget = "";
+    this.listItemElement.tabIndex = -1;
     this._linkifier = linkifier;
 }
 

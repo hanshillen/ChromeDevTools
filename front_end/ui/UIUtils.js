@@ -763,6 +763,7 @@ WebInspector.installComponentRootStyles = function(element)
 WebInspector.createShadowRootWithCoreStyles = function(element, cssFile)
 {
     var shadowRoot = element.createShadowRoot();
+    shadowRoot.host.dataset.shadowHost = '';
     WebInspector.appendStyle(shadowRoot, "ui/inspectorCommon.css");
     WebInspector.themeSupport.injectHighlightStyleSheets(shadowRoot);
     if (cssFile)
