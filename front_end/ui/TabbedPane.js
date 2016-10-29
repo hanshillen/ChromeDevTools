@@ -1044,10 +1044,8 @@ WebInspector.TabbedPaneTab.prototype = {
     {
         var tabElement = createElementWithClass("div", "tabbed-pane-header-tab");
         tabElement.id = "tab-" + this._id;
-        tabElement.tabIndex = -1;
+        WebInspector.keyboardManager.registerNode(tabElement, 'tabs', null, -1);
         tabElement.setAttribute("role", "tab");
-        tabElement.dataset.keyNav = "tabs";
-        tabElement.tabIndex = -1;
         tabElement.setAttribute("aria-selected", "false");
         tabElement.selectTabForTest = this._tabbedPane.selectTab.bind(this._tabbedPane, this.id, true);
 

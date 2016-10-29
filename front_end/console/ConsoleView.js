@@ -76,7 +76,7 @@ WebInspector.ConsoleView = function()
     toolbar.appendToolbarItem(this._preserveLogCheckbox);
     toolbar.appendToolbarItem(this._progressToolbarItem);
     
-    //TODO: handle this in KeyboardAccessibility
+    //TODO: handle this in KeyboardManager
     //TODO: /deep/ is deprecated, alternative?
     let firstItem = toolbar.element.querySelector('* /deep/ [data-toolbar-item]');
     if (firstItem) {
@@ -89,7 +89,7 @@ WebInspector.ConsoleView = function()
     this._viewport = new WebInspector.ViewportControl(this);
     this._viewport.setStickToBottom(true);
     this._viewport.contentElement().classList.add("console-group", "console-group-messages");
-    this._viewport.contentElement().dataset.logGroup = '';
+    WebInspector.keyboardManager.registerNode(this._viewport.contentElement(), null, ['logGroup']);
     this._contentsElement.appendChild(this._viewport.element);
     this._messagesElement = this._viewport.element;
     this._messagesElement.id = "console-messages";

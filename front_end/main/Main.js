@@ -148,11 +148,11 @@ WebInspector.Main.prototype = {
 
         var canDock = !!Runtime.queryParam("can_dock");
         WebInspector.zoomManager = new WebInspector.ZoomManager(window, InspectorFrontendHost);
+        WebInspector.keyboardManager = new WebInspector.KeyboardManager(document);
         WebInspector.inspectorView = WebInspector.InspectorView.instance();
         WebInspector.ContextMenu.initialize();
         WebInspector.ContextMenu.installHandler(document);
         WebInspector.Tooltip.installHandler(document);
-        WebInspector.KeyboardAccessibility.installHandler(document);
         WebInspector.dockController = new WebInspector.DockController(canDock);
         WebInspector.multitargetConsoleModel = new WebInspector.MultitargetConsoleModel();
         WebInspector.multitargetNetworkManager = new WebInspector.MultitargetNetworkManager();

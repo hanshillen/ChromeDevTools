@@ -153,7 +153,7 @@ TreeOutline.prototype = {
     setFocusable: function(focusable)
     {
         if (focusable)
-           this.contentElement.setAttribute("tabIndex", 0);
+            this.contentElement.setAttribute("tabIndex", 0);
         else
             this.contentElement.removeAttribute("tabIndex");
     },
@@ -364,9 +364,7 @@ function TreeElement(title, expandable)
     this.nextSibling = null;
 
     this._listItemNode = createElement("li");
-    this._listItemNode.dataset.shadowClickTarget = '';
-    this._listItemNode.dataset.keyNav = 'tree';
-    this._listItemNode.dataset.treeItem = '';
+    WebInspector.keyboardManager.registerNode(this._listItemNode, 'tree', ['treeItem', 'shadowClickTarget']);
     this._listItemNode.treeElement = this;
     if (title)
         this.title = title;
@@ -378,7 +376,7 @@ function TreeElement(title, expandable)
     this._childrenListNode = createElement("ol");
     this._childrenListNode.parentTreeElement = this;
     this._childrenListNode.classList.add("children");
-    this._childrenListNode.dataset.treeGroup = "";
+    WebInspector.keyboardManager.registerNode(this._childrenListNode, null, ['treeGroup']);
 
     this._hidden = false;
     this._selectable = true;
@@ -728,7 +726,7 @@ TreeElement.prototype = {
         this._expandable = expandable;
 
         this._listItemNode.classList.toggle("parent", expandable);
-        this._listItemNode.dataset.treeItemParent == '';
+        WebInspector.keyboardManager.registerNode(this._listItemNode, null, ['treeItemParent']);
         if (!expandable)
             this.collapse();
     },

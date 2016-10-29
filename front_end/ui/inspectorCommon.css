@@ -46,14 +46,9 @@
     box-sizing: border-box;
 }
 
-/* SCAFFOLDING FOR FOCUS TRACKING, DON'T CHECK IN*/
 :focus {
- 
+	
     outline: none;
-    /*
-    outline: 1px solid #CCC;
-    outline-color: #094a6b;
-    outline-offset: -5px;*/
 }
 
 [role=toolbar] button:focus, [role=toolbar] select:focus, input:focus {

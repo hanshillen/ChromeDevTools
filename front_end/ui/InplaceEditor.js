@@ -175,7 +175,6 @@ WebInspector.InplaceEditor.prototype = {
          */
         function defaultFinishHandler(event)
         {
-            console.log("finish")
             var isMetaOrCtrl = WebInspector.isMac() ?
                 event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey :
                 event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey;

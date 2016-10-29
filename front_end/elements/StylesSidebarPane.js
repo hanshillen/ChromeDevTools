@@ -554,9 +554,7 @@ WebInspector.SectionBlock = function(titleElement)
 WebInspector.SectionBlock.createPseudoTypeBlock = function(pseudoType)
 {
     var separatorElement = createElementWithClass("div", "sidebar-separator");
-    separatorElement.dataset.treeSeparator = ""
-    separatorElement.tabIndex = -1;
-    separatorElement.dataset.keyNav = "tree";
+    WebInspector.keyboardManager.registerNode(separatorElement, 'tree', ['treeSeparator'], -1);
     separatorElement.textContent = WebInspector.UIString("Pseudo ::%s element", pseudoType);
     return new WebInspector.SectionBlock(separatorElement);
 }
@@ -568,9 +566,7 @@ WebInspector.SectionBlock.createPseudoTypeBlock = function(pseudoType)
 WebInspector.SectionBlock.createKeyframesBlock = function(keyframesName)
 {
     var separatorElement = createElementWithClass("div", "sidebar-separator");
-    separatorElement.dataset.treeSeparator = "";
-    separatorElement.dataset.keyNav = "tree";
-    separatorElement.tabIndex = -1;
+    WebInspector.keyboardManager.registerNode(separatorElement, 'tree', ['treeSeparator'], -1);
     separatorElement.textContent = WebInspector.UIString("@keyframes " + keyframesName);
     return new WebInspector.SectionBlock(separatorElement);
 }
@@ -582,12 +578,10 @@ WebInspector.SectionBlock.createKeyframesBlock = function(keyframesName)
 WebInspector.SectionBlock.createInheritedNodeBlock = function(node)
 {
     var separatorElement = createElementWithClass("div", "sidebar-separator");
-    separatorElement.dataset.treeSeparator = "";
-    separatorElement.tabIndex = -1;
-    separatorElement.dataset.keyNav = "tree";
+    WebInspector.keyboardManager.registerNode(separatorElement, 'tree', ['treeSeparator'], -1);
     var link = WebInspector.DOMPresentationUtils.linkifyNodeReference(node);
     link.classList.add("styles-inherited-link");
-    link.dataset.shadowHost = '';
+    WebInspector.keyboardManager.registerNode(link, null, ['shadowHost']);
     separatorElement.createTextChild(WebInspector.UIString("Inherited from") + " ");
     separatorElement.appendChild(link);
     return new WebInspector.SectionBlock(separatorElement);
@@ -627,26 +621,22 @@ WebInspector.StylePropertiesSection = function(parentPane, matchedStyles, style)
 
     var rule = style.parentRule;
     this.element = createElementWithClass("div", "styles-section matched-styles monospace");
-    this.element.dataset.treeSection = "";
-    this.element.dataset.keyNav = "tree";
+    WebInspector.keyboardManager.registerNode(this.element, 'tree', ['treeSection']);
     this.element._section = this;
 
     this._titleElement = this.element.createChild("div", "styles-section-title " + (rule ? "styles-selector" : ""));
-    this._titleElement.tabIndex = -1;
-    this._titleElement.dataset.treeGroupTitle = "";
-    this._titleElement.dataset.keyNav = "tree";
-    if (this._style.type === WebInspector.CSSStyleDeclaration.Type.Inline) {
-        this._titleElement.tabIndex = 0;
-    }
+    var titleTabIndex = this._style.type === WebInspector.CSSStyleDeclaration.Type.Inline ? 0 : -1
+    WebInspector.keyboardManager.registerNode(this._titleElement, 'tree', ['treeGroupTitle'], titleTabIndex);
+
     this.propertiesTreeOutline = new TreeOutline(true);
     this.propertiesTreeOutline.element.classList.add("style-properties", "monospace");
-    this.propertiesTreeOutline.element.setAttribute("data-tree-group", '');
+    WebInspector.keyboardManager.registerNode(this.propertiesTreeOutline.element, null, ['treeGroup']);
     this.propertiesTreeOutline.section = this;
     this.element.appendChild(this.propertiesTreeOutline.element);
 
     var selectorContainer = createElement("div");
     this._selectorElement = createElementWithClass("span", "selector");
-    this._selectorElement.dataset.treeItemClickTarget = ''
+    WebInspector.keyboardManager.registerNode(this._selectorElement, null, ['treeItemClickTarget']);
     this._selectorElement.textContent = this._headerText();
     selectorContainer.appendChild(this._selectorElement);
     this._selectorElement.addEventListener("mouseenter", this._onMouseEnterSelector.bind(this), false);
@@ -2185,13 +2175,13 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
             var parentGroup = this.parent;
             var propertyIndex = parentGroup._children.indexOf(this);
-            var resetFocus = WebInspector.KeyboardAccessibility.isMarkedForRefocus(this._listItemNode);
+            var resetFocus = WebInspector.keyboardManager.isMarkedForRefocus(this._listItemNode);
             this._updatePane();
             this.styleTextAppliedForTest();
             if (resetFocus) {
                 if (parentGroup._children.length > propertyIndex) {
                     var listItemNode = parentGroup._children[propertyIndex]._listItemNode;
-                    WebInspector.KeyboardAccessibility.focus(listItemNode);
+                    WebInspector.keyboardManager.focus(listItemNode);
                 }
             }
             return;
@@ -2267,7 +2257,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this._updateState();
         this._expandElement = createElement("span");
         this._expandElement.className = "expand-element";
-        this._expandElement.dataset.treeExpander = '';
+        WebInspector.keyboardManager.registerNode(this._expandElement, null, ['treeExpander']);
 
         var propertyRenderer = new WebInspector.StylesSidebarPropertyRenderer(this._style.parentRule, this.node(), this.name, this.value);
         if (this.property.parsedOk) {
@@ -2278,9 +2268,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
         this.listItemElement.removeChildren();
         this.nameElement = propertyRenderer.renderName();
-        this.listItemElement.dataset.treeItem = '';
-        this.listItemElement.tabIndex = -1;
-        this.listItemElement.dataset.keyNav = "tree";
+        WebInspector.keyboardManager.registerNode(this.listItemElement, 'tree', ['treeItem'], -1);
         this.valueElement = propertyRenderer.renderValue();
         if (!this.treeOutline)
             return;
@@ -2309,7 +2297,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         if (this.property.parsedOk && this.section() && this.parent.root) {
             var enabledCheckboxElement = createElement("input");
             enabledCheckboxElement.className = "enabled-button";
-            enabledCheckboxElement.dataset.toggleControl = '';
+            WebInspector.keyboardManager.registerNode(enabledCheckboxElement, null, ['toggleControl']);
             enabledCheckboxElement.type = "checkbox";
             enabledCheckboxElement.checked = !this.property.disabled;
             enabledCheckboxElement.addEventListener("click", this._toggleEnabled.bind(this), false);
@@ -2539,7 +2527,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
                     setTimeout(function(){
                         if (parentGroup._children.length > index) {
                             var listItemNode = parentGroup._children[index]._listItemNode;
-                            WebInspector.KeyboardAccessibility.focus(listItemNode);
+                            WebInspector.keyboardManager.focus(listItemNode);
                         }
                     }, 100);
 
@@ -2646,9 +2634,9 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this._revertStyleUponEditingCanceled();
         // This should happen last, as it clears the info necessary to restore the property value after [Page]Up/Down changes.
         this.editingEnded(context);
-        if (WebInspector.KeyboardAccessibility.isMarkedForRefocus(this._listItemNode)) {
-            WebInspector.KeyboardAccessibility.focus(this._listItemNode);
-            WebInspector.KeyboardAccessibility.unmarkAsRefocus(this._listItemNode);
+        if (WebInspector.keyboardManager.isMarkedForRefocus(this._listItemNode)) {
+            WebInspector.keyboardManager.focus(this._listItemNode);
+            WebInspector.keyboardManager.unmarkAsRefocus(this._listItemNode);
         }
     },
 
@@ -3119,7 +3107,7 @@ WebInspector.StylesSidebarPropertyRenderer.prototype = {
     {
         var nameElement = createElement("span");
         nameElement.className = "webkit-css-property";
-        nameElement.dataset.treeItemClickTarget = '';
+        WebInspector.keyboardManager.registerNode(nameElement, null, ['treeItemClickTarget']);
         nameElement.textContent = this._propertyName;
         nameElement.normalize();
         return nameElement;

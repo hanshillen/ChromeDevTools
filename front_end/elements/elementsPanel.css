@@ -160,7 +160,7 @@
     -webkit-user-select: text;
     border-bottom: 1px solid #eee;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .styles-section:last-child {
@@ -649,7 +649,7 @@ li.editing .enabled-button {
     color: rgb(50, 50, 50);
     white-space: nowrap;
     text-overflow: ellipsis;
-    overflow: visible;
+    overflow: hidden;
     line-height: 16px;
 }
 

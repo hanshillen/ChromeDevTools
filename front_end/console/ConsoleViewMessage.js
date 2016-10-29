@@ -204,9 +204,7 @@ WebInspector.ConsoleViewMessage.prototype = {
                     if (url) {
                         var isExternal = !WebInspector.resourceForURL(url) && !WebInspector.networkMapping.uiSourceCodeForURLForAnyTarget(url);
                         this._anchorElement = WebInspector.linkifyURLAsNode(url, url, "console-message-url", isExternal);
-                        this._anchorElement.dataset.logRowObject = '';
-                        this._anchorElement.dataset.keyNav = 'log';
-                        this._anchorElement.tabIndex= -1;
+                        WebInspector.keyboardManager.registerNode(this._anchorElement, 'log', ['logRowObject'], -1);
                     }
                     this._messageElement = this._format([consoleMessage.messageText]);
                 }
@@ -241,9 +239,7 @@ WebInspector.ConsoleViewMessage.prototype = {
         if (dumpStackTrace && target) {
             var toggleElement = createElementWithClass("div", "console-message-stack-trace-toggle");
             var triangleElement = toggleElement.createChild("div", "console-message-stack-trace-triangle");
-            triangleElement.dataset.logRowObject = '';
-            triangleElement.dataset.keyNav = 'log';
-            triangleElement.tabIndex = -1;
+            WebInspector.keyboardManager.registerNode(triangleElement, 'log', ['logRowObject'], -1);
             var contentElement = toggleElement.createChild("div", "console-message-stack-trace-wrapper");
 
             var clickableElement = contentElement.createChild("div");
@@ -316,9 +312,7 @@ WebInspector.ConsoleViewMessage.prototype = {
         if (!target)
             return null;
         var link = this._linkifier.linkifyStackTraceTopFrame(target, stackTrace, "console-message-url");
-        link.dataset.logRowObject = '';
-        link.dataset.keyNav = 'log';
-        link.tabIndex = -1;
+        WebInspector.keyboardManager.registerNode(link, 'log', ['logRowObject'], -1);
         return link;
     },
 
@@ -411,9 +405,7 @@ WebInspector.ConsoleViewMessage.prototype = {
         var span = createElement("span");
         span.className = "object-value-" + type + " source-code";
         formatter.call(this, output, span, includePreview);
-        span.tabIndex = -1;
-        span.dataset.logRowObject = '';
-        span.dataset.keyNav = 'log';
+        WebInspector.keyboardManager.registerNode(span, 'log', ['logRowObject'], -1);
         return span;
     },
 
@@ -460,7 +452,7 @@ WebInspector.ConsoleViewMessage.prototype = {
 
         var section = new WebInspector.ObjectPropertiesSection(obj, titleElement, this._linkifier);
         section.element.classList.add("console-view-object-properties-section");
-        section.element.dataset.shadowHost = '';
+        WebInspector.keyboardManager.registerNode(section.element, null, ['shadowHost']);
         section.enableContextMenu();
         elem.appendChild(section.element);
     },
@@ -716,7 +708,7 @@ WebInspector.ConsoleViewMessage.prototype = {
 
         var section = new WebInspector.ObjectPropertiesSection(array, titleElement, this._linkifier);
         section.element.classList.add("console-view-object-properties-section");
-        section.element.dataset.shadowHost = '';
+        WebInspector.keyboardManager.registerNode(section.element, null, ['shadowHost']);
         section.enableContextMenu();
         elem.appendChild(section.element);
     },
@@ -972,9 +964,7 @@ WebInspector.ConsoleViewMessage.prototype = {
 
         if (this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroup || this._message.type === WebInspector.ConsoleMessage.MessageType.StartGroupCollapsed) {
             element.classList.add("console-group-title");
-            element.dataset.keyNav = "log";
-            element.dataset.logRowObject = "";
-            element.tabIndex="-1";
+            WebInspector.keyboardManager.registerNode(element, 'log', ['logRowObject'], -1);
         }
         element.appendChild(this.formattedMessage());
 
@@ -1005,9 +995,7 @@ WebInspector.ConsoleViewMessage.prototype = {
             return;
 
         this._wrapperElement.className = "console-message-wrapper";
-        this._wrapperElement.dataset.keyNav = "log";
-        this._wrapperElement.dataset.logRow = '';
-        this._wrapperElement.tabIndex = 0;
+        WebInspector.keyboardManager.registerNode(this._wrapperElement, 'log', ['logRow'], 0);
         
         this._wrapperElement.removeChildren();
 

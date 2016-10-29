@@ -44,7 +44,7 @@ WebInspector.Toolbar = function(className, parentElement)
     this._shadowRoot = WebInspector.createShadowRootWithCoreStyles(this.element, "ui/toolbar.css");
     this._contentElement = this._shadowRoot.createChild("div", "toolbar-shadow");
     this._contentElement.setAttribute("role", "toolbar");
-    this._contentElement.dataset.toolbar = '';
+    WebInspector.keyboardManager.registerNode(this._contentElement, null, ['toolbar']);
     this._insertionPoint = this._contentElement.createChild("content");
 }
 
@@ -101,7 +101,6 @@ WebInspector.Toolbar.prototype = {
         else
             this._contentElement.insertBefore(item.element, this._insertionPoint);
         this._hideSeparatorDupes();
-        //console.trace("append item: %o", item.element);
     },
 
     appendSeparator: function()
@@ -293,9 +292,7 @@ WebInspector.ToolbarButton = function(title, glyph, text)
     this.element.addEventListener("click", this._clicked.bind(this), false);
     this.element.addEventListener("mousedown", this._mouseDown.bind(this), false);
     this.element.addEventListener("mouseup", this._mouseUp.bind(this), false);
-    this.element.dataset.toolbarItem = '';
-    this.element.dataset.keyNav = "toolbar";
-    this.element.tabIndex = -1;
+    WebInspector.keyboardManager.registerNode(this.element, 'toolbar', ['toolbarItem'], -1);
     this.element.setAttribute("aria-label", title);
     
     this._glyphElement = this.element.createChild("div", "toolbar-glyph hidden");
@@ -788,9 +785,7 @@ WebInspector.ToolbarComboBox = function(changeHandler, className)
     WebInspector.ToolbarItem.call(this, createElementWithClass("span", "toolbar-select-container"));
 
     this._selectElement = this.element.createChild("select", "toolbar-item");
-    this._selectElement.dataset.toolbarItem = '';
-    this._selectElement.dataset.keyNav = "toolbar";
-    this._selectElement.tabIndex = -1;
+    WebInspector.keyboardManager.registerNode(this._selectElement, 'toolbar', ['toolbarItem'], -1);
     
     this.element.createChild("div", "toolbar-dropdown-arrow");
     if (changeHandler)
@@ -928,9 +923,7 @@ WebInspector.ToolbarCheckbox = function(text, title, setting, listener)
     WebInspector.ToolbarItem.call(this, createCheckboxLabel(text));
     this.element.classList.add("checkbox");
     this.inputElement = this.element.checkboxElement;
-    this.inputElement.dataset.keyNav = "toolbar";
-    this.inputElement.dataset.toolbarItem = '';
-    this.inputElement.tabIndex = -1;
+    WebInspector.keyboardManager.registerNode(this.inputElement, 'toolbar', ['toolbarItem'], -1);
     if (title)
         this.element.title = title;
     if (setting)
@@ -1014,13 +1007,11 @@ WebInspector.ExtensibleToolbar.prototype = {
          */
         function appendItemsInOrder(items)
         {
-            //console.log(items);
             for (var i = 0; i < items.length; ++i) {
                 var item = items[i];
                 if (item) {
                     this.appendToolbarItem(item);
                     if (i === 0) {
-                        //console.log("test %o", item.element);
                         item.element.tabIndex = 0;
                     }
                 }

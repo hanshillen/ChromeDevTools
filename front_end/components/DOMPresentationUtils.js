@@ -135,7 +135,7 @@ WebInspector.DOMPresentationUtils.linkifyDeferredNodeReference = function(deferr
     var root = createElement("div");
     var shadowRoot = WebInspector.createShadowRootWithCoreStyles(root, "components/domUtils.css");
     var link = shadowRoot.createChild("div", "node-link");
-    link.dataset.shadowClickTarget = '';
+    WebInspector.keyboardManager.registerNode(link, null, ['shadowClickTarget']);
     link.createChild("content");
     link.addEventListener("click", deferredNode.resolve.bind(deferredNode, onDeferredNodeResolved), false);
     link.addEventListener("mousedown", consumeEvent, false);
