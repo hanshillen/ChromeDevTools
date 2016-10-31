@@ -38,13 +38,11 @@ WebInspector.TabbedPane = function()
     this.registerRequiredCSS("ui/tabbedPane.css");
     this.element.classList.add("tabbed-pane");
     this.contentElement.classList.add("tabbed-pane-shadow");
-    this.contentElement.tabIndex = -1;
+    WebInspector.keyboardManager.makeFocusable(this.contentElement, false);
     this._headerElement = this.contentElement.createChild("div", "tabbed-pane-header");
-    this._headerElement.createChild("content").select = ".tabbed-pane-header-before";
     this._headerContentsElement = this._headerElement.createChild("div", "tabbed-pane-header-contents");
     this._headerContentsElement.setAttribute("aria-label", WebInspector.UIString("Panels"));
     this._tabSlider = createElementWithClass("div", "tabbed-pane-tab-slider");
-    this._headerElement.createChild("content").select = ".tabbed-pane-header-after";
     this._tabsElement = this._headerContentsElement.createChild("div", "tabbed-pane-header-tabs");
     this._tabsElement.setAttribute("role", "tablist");
     this._contentElement = this.contentElement.createChild("div", "tabbed-pane-content");
@@ -57,17 +55,18 @@ WebInspector.TabbedPane = function()
     /** @type {!Object.<string, !WebInspector.TabbedPaneTab>} */
     this._tabsById = {};
     this._currentTabLocked = false;
+    this._autoSelectFirstItemOnShow = true;
 
     this._dropDownButton = this._createDropDownButton();
     WebInspector.zoomManager.addEventListener(WebInspector.ZoomManager.Events.ZoomChanged, this._zoomChanged, this);
-}
+};
 
 /** @enum {symbol} */
 WebInspector.TabbedPane.Events = {
     TabSelected: Symbol("TabSelected"),
     TabClosed: Symbol("TabClosed"),
     TabOrderChanged: Symbol("TabOrderChanged")
-}
+};
 
 WebInspector.TabbedPane.prototype = {
     /**
@@ -77,6 +76,14 @@ WebInspector.TabbedPane.prototype = {
     {
         this._currentTabLocked = locked;
         this._headerElement.classList.toggle("locked", this._currentTabLocked);
+    },
+
+    /**
+     * @param {boolean} autoSelect
+     */
+    setAutoSelectFirstItemOnShow: function(autoSelect)
+    {
+        this._autoSelectFirstItemOnShow = autoSelect;
     },
 
     /**
@@ -93,6 +100,15 @@ WebInspector.TabbedPane.prototype = {
     tabIds: function()
     {
         return this._tabs.map(tab => tab._id);
+    },
+
+    /**
+     * @param {string} tabId
+     * @return {number}
+     */
+    tabIndex: function(tabId)
+    {
+        return this._tabs.findIndex(tab => tab.id === tabId);
     },
 
     /**
@@ -146,6 +162,9 @@ WebInspector.TabbedPane.prototype = {
         this._closeableTabs = closeableTabs;
     },
 
+    /**
+     * @override
+     */
     focus: function()
     {
         if (this.visibleView)
@@ -405,14 +424,17 @@ WebInspector.TabbedPane.prototype = {
     /**
      * @param {string} id
      * @param {string} tabTitle
+     * @param {string=} tabTooltip
      */
-    changeTabTitle: function(id, tabTitle)
+    changeTabTitle: function(id, tabTitle, tabTooltip)
     {
         var tab = this._tabsById[id];
-        if (tab.title === tabTitle)
-            return;
-        tab.title = tabTitle;
-        this._updateTabElements();
+        if (tabTooltip !== undefined)
+            tab.tooltip = tabTooltip;
+        if (tab.title !== tabTitle) {
+            tab.title = tabTitle;
+            this._updateTabElements();
+        }
     },
 
     /**
@@ -425,7 +447,7 @@ WebInspector.TabbedPane.prototype = {
         if (tab.view === view)
             return;
 
-        var shouldFocus = tab.view.element.isSelfOrAncestor(WebInspector.currentFocusElement());
+        var shouldFocus = tab.view.hasFocus();
 
         this.suspendInvalidations();
 
@@ -456,7 +478,7 @@ WebInspector.TabbedPane.prototype = {
     wasShown: function()
     {
         var effectiveTab = this._currentTab || this._tabsHistory[0];
-        if (effectiveTab)
+        if (effectiveTab && this._autoSelectFirstItemOnShow)
             this.selectTab(effectiveTab.id);
     },
 
@@ -771,7 +793,7 @@ WebInspector.TabbedPane.prototype = {
     {
         tab.tabElement.classList.add("selected");
         tab.tabElement.setAttribute("aria-selected", "true");
-        tab.tabElement.tabIndex = 0;
+        WebInspector.keyboardManager.makeFocusable(tab.tabElement, true);
         tab.view.showWidget(this.element);
         this._updateTabSlider();
     },
@@ -799,7 +821,7 @@ WebInspector.TabbedPane.prototype = {
     {
         tab.tabElement.classList.remove("selected");
         tab.tabElement.setAttribute("aria-selected", "false");
-        tab.tabElement.tabIndex = -1;
+        WebInspector.keyboardManager.makeFocusable(tab.tabElement, false);
         tab.view.hideWidget();
     },
 
@@ -828,21 +850,27 @@ WebInspector.TabbedPane.prototype = {
     },
 
     /**
-     * @param {!Element} element
+     * @return {!WebInspector.Toolbar}
      */
-    insertBeforeTabStrip: function(element)
+    leftToolbar: function()
     {
-        element.classList.add("tabbed-pane-header-before");
-        this.element.appendChild(element);
+        if (!this._leftToolbar) {
+            this._leftToolbar = new WebInspector.Toolbar("tabbed-pane-left-toolbar");
+            this._headerElement.insertBefore(this._leftToolbar.element, this._headerElement.firstChild);
+        }
+        return this._leftToolbar;
     },
 
     /**
-     * @param {!Element} element
+     * @return {!WebInspector.Toolbar}
      */
-    appendAfterTabStrip: function(element)
+    rightToolbar: function()
     {
-        element.classList.add("tabbed-pane-header-after");
-        this.element.appendChild(element);
+        if (!this._rightToolbar) {
+            this._rightToolbar = new WebInspector.Toolbar("tabbed-pane-right-toolbar");
+            this._headerElement.appendChild(this._rightToolbar.element);
+        }
+        return this._rightToolbar;
     },
 
     renderWithNoHeaderBackground: function()
@@ -861,7 +889,7 @@ WebInspector.TabbedPane.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -883,7 +911,7 @@ WebInspector.TabbedPaneTab = function(tabbedPane, id, title, closeable, view, to
     this._shown = false;
     /** @type {number} */ this._measuredWidth;
     /** @type {!Element|undefined} */ this._tabElement;
-}
+};
 
 WebInspector.TabbedPaneTab.prototype = {
     /**
@@ -1234,14 +1262,14 @@ WebInspector.TabbedPaneTab.prototype = {
         delete this._dragStartX;
         this._tabbedPane._updateTabSlider();
     }
-}
+};
 
 /**
  * @interface
  */
 WebInspector.TabbedPaneTabDelegate = function()
 {
-}
+};
 
 WebInspector.TabbedPaneTabDelegate.prototype = {
     /**
@@ -1255,4 +1283,4 @@ WebInspector.TabbedPaneTabDelegate.prototype = {
      * @param {!WebInspector.ContextMenu} contextMenu
      */
     onContextMenu: function(tabId, contextMenu) { }
-}
+};

@@ -41,10 +41,18 @@ WebInspector.UISourceCode = function(project, url, contentType)
     this._project = project;
     this._url = url;
 
-    var pathComponents = WebInspector.ParsedURL.splitURLIntoPathComponents(url);
-    this._origin = pathComponents[0];
-    this._parentURL = pathComponents.slice(0, -1).join("/");
-    this._name = pathComponents[pathComponents.length - 1];
+    var parsedURL = url.asParsedURL();
+    if (parsedURL) {
+        this._origin = parsedURL.securityOrigin();
+        this._parentURL = this._origin + parsedURL.folderPathComponents;
+        this._name = parsedURL.lastPathComponent;
+        if (parsedURL.queryParams)
+            this._name += "?" + parsedURL.queryParams;
+    } else {
+        this._origin = "";
+        this._parentURL = "";
+        this._name = url;
+    }
 
     this._contentType = contentType;
     /** @type {?function(?string)} */
@@ -56,11 +64,10 @@ WebInspector.UISourceCode = function(project, url, contentType)
 
     /** @type {!Array.<!WebInspector.Revision>} */
     this.history = [];
-    this._hasUnsavedCommittedChanges = false;
 
     /** @type {!Array<!WebInspector.UISourceCode.Message>} */
     this._messages = [];
-}
+};
 
 /** @enum {symbol} */
 WebInspector.UISourceCode.Events = {
@@ -72,9 +79,17 @@ WebInspector.UISourceCode.Events = {
     MessageRemoved: Symbol("MessageRemoved"),
     LineDecorationAdded: Symbol("LineDecorationAdded"),
     LineDecorationRemoved: Symbol("LineDecorationRemoved")
-}
+};
 
 WebInspector.UISourceCode.prototype = {
+    /**
+     * @return {!Promise<?WebInspector.UISourceCodeMetadata>}
+     */
+    requestMetadata: function()
+    {
+        return this._project.requestMetadata(this);
+    },
+
     /**
      * @return {string}
      */
@@ -292,7 +307,7 @@ WebInspector.UISourceCode.prototype = {
         {
             if (updatedContent === null) {
                 var workingCopy = this.workingCopy();
-                this._contentCommitted("", true, false);
+                this._contentCommitted("", false);
                 this.setWorkingCopy(workingCopy);
                 this._terminateContentCheck();
                 return;
@@ -309,14 +324,14 @@ WebInspector.UISourceCode.prototype = {
             }
 
             if (!this.isDirty() || this._workingCopy === updatedContent) {
-                this._contentCommitted(updatedContent, true, false);
+                this._contentCommitted(updatedContent, false);
                 this._terminateContentCheck();
                 return;
             }
 
             var shouldUpdate = window.confirm(WebInspector.UIString("This file was changed externally. Would you like to reload it?"));
             if (shouldUpdate)
-                this._contentCommitted(updatedContent, true, false);
+                this._contentCommitted(updatedContent, false);
             else
                 this._lastAcceptedContent = updatedContent;
             this._terminateContentCheck();
@@ -344,26 +359,20 @@ WebInspector.UISourceCode.prototype = {
      */
     _commitContent: function(content)
     {
-        var wasPersisted = false;
         if (this._project.canSetFileContent()) {
             this._project.setFileContent(this, content, function() { });
-            wasPersisted = true;
-        } else if (this._project.workspace().hasResourceContentTrackingExtensions()) {
-            wasPersisted = true;
         } else if (this._url && WebInspector.fileManager.isURLSaved(this._url)) {
             WebInspector.fileManager.save(this._url, content, false, function() { });
             WebInspector.fileManager.close(this._url);
-            wasPersisted = true;
         }
-        this._contentCommitted(content, wasPersisted, true);
+        this._contentCommitted(content, true);
     },
 
     /**
      * @param {string} content
-     * @param {boolean} wasPersisted
      * @param {boolean} committedByUser
      */
-    _contentCommitted: function(content, wasPersisted, committedByUser)
+    _contentCommitted: function(content, committedByUser)
     {
         delete this._lastAcceptedContent;
         this._content = content;
@@ -376,8 +385,7 @@ WebInspector.UISourceCode.prototype = {
         }
 
         this._innerResetWorkingCopy();
-        this._hasUnsavedCommittedChanges = !wasPersisted;
-        this.dispatchEventToListeners(WebInspector.UISourceCode.Events.WorkingCopyCommitted);
+        this.dispatchEventToListeners(WebInspector.UISourceCode.Events.WorkingCopyCommitted, { content: content });
         this._project.workspace().dispatchEventToListeners(WebInspector.Workspace.Events.WorkingCopyCommitted, { uiSourceCode: this, content: content });
         if (committedByUser)
             this._project.workspace().dispatchEventToListeners(WebInspector.Workspace.Events.WorkingCopyCommittedByUser, { uiSourceCode: this, content: content });
@@ -395,16 +403,8 @@ WebInspector.UISourceCode.prototype = {
         function callback(accepted)
         {
             if (accepted)
-                this._contentCommitted(this.workingCopy(), true, true);
+                this._contentCommitted(this.workingCopy(), true);
         }
-    },
-
-    /**
-     * @return {boolean}
-     */
-    hasUnsavedCommittedChanges: function()
-    {
-        return this._hasUnsavedCommittedChanges;
     },
 
     /**
@@ -713,7 +713,7 @@ WebInspector.UISourceCode.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -726,7 +726,7 @@ WebInspector.UILocation = function(uiSourceCode, lineNumber, columnNumber)
     this.uiSourceCode = uiSourceCode;
     this.lineNumber = lineNumber;
     this.columnNumber = columnNumber;
-}
+};
 
 WebInspector.UILocation.prototype = {
     /**
@@ -755,7 +755,7 @@ WebInspector.UILocation.prototype = {
     {
         return this.uiSourceCode.url() + ":" + (this.lineNumber + 1);
     }
-}
+};
 
 /**
  * @constructor
@@ -769,7 +769,7 @@ WebInspector.Revision = function(uiSourceCode, content, timestamp)
     this._uiSourceCode = uiSourceCode;
     this._content = content;
     this._timestamp = timestamp;
-}
+};
 
 WebInspector.Revision.prototype = {
     /**
@@ -852,7 +852,7 @@ WebInspector.Revision.prototype = {
     {
         callback([]);
     }
-}
+};
 
 /**
  * @constructor
@@ -867,7 +867,7 @@ WebInspector.UISourceCode.Message = function(uiSourceCode, level, text, range)
     this._level = level;
     this._text = text;
     this._range = range;
-}
+};
 
 /**
  * @enum {string}
@@ -875,7 +875,7 @@ WebInspector.UISourceCode.Message = function(uiSourceCode, level, text, range)
 WebInspector.UISourceCode.Message.Level = {
     Error: "Error",
     Warning: "Warning"
-}
+};
 
 WebInspector.UISourceCode.Message.prototype = {
     /**
@@ -939,7 +939,7 @@ WebInspector.UISourceCode.Message.prototype = {
     {
         this._uiSourceCode.removeMessage(this);
     }
-}
+};
 
 /**
  * @constructor
@@ -952,7 +952,7 @@ WebInspector.UISourceCode.LineMarker = function(line, type, data)
     this._line = line;
     this._type = type;
     this._data = data;
-}
+};
 
 WebInspector.UISourceCode.LineMarker.prototype = {
     /**
@@ -978,4 +978,15 @@ WebInspector.UISourceCode.LineMarker.prototype = {
     {
         return this._data;
     }
-}
+};
+
+/**
+ * @constructor
+ * @param {?Date} modificationTime
+ * @param {?number} contentSize
+ */
+WebInspector.UISourceCodeMetadata = function(modificationTime, contentSize)
+{
+    this.modificationTime = modificationTime;
+    this.contentSize = contentSize;
+};

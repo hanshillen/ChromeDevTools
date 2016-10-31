@@ -39,13 +39,13 @@ WebInspector.FileSystemMapping = function()
     /** @type {!Object.<string, !Array.<!WebInspector.FileSystemMapping.Entry>>} */
     this._fileSystemMappings = {};
     this._loadFromSettings();
-}
+};
 
 /** @enum {symbol} */
 WebInspector.FileSystemMapping.Events = {
     FileMappingAdded: Symbol("FileMappingAdded"),
     FileMappingRemoved: Symbol("FileMappingRemoved")
-}
+};
 
 WebInspector.FileSystemMapping.prototype = {
     _loadFromSettings: function()
@@ -54,7 +54,7 @@ WebInspector.FileSystemMapping.prototype = {
         this._fileSystemMappings = {};
         for (var fileSystemPath in savedMapping) {
             var savedFileSystemMappings = savedMapping[fileSystemPath];
-            fileSystemPath = WebInspector.IsolatedFileSystemManager.normalizePath(fileSystemPath);
+            fileSystemPath = WebInspector.ParsedURL.platformPathToURL(fileSystemPath);
             this._fileSystemMappings[fileSystemPath] = [];
             var fileSystemMappings = this._fileSystemMappings[fileSystemPath];
 
@@ -328,7 +328,7 @@ WebInspector.FileSystemMapping.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -343,7 +343,7 @@ WebInspector.FileSystemMapping.Entry = function(fileSystemPath, urlPrefix, pathP
     this.urlPrefix = urlPrefix;
     this.pathPrefix = pathPrefix;
     this.configurable = configurable;
-}
+};
 
 /**
  * @type {!WebInspector.FileSystemMapping}

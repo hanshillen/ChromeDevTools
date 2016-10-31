@@ -48,6 +48,7 @@ WebInspector.Spectrum = function()
     WebInspector.VBox.call(this, true);
     this.registerRequiredCSS("components/spectrum.css");
     this.contentElement.tabIndex = 0;
+    this.setDefaultFocusedElement(this.contentElement);
 
     this._colorElement = this.contentElement.createChild("div", "spectrum-color");
     this._colorDragElement = this._colorElement.createChild("div", "spectrum-sat fill").createChild("div", "spectrum-val fill").createChild("div", "spectrum-dragger");
@@ -181,13 +182,13 @@ WebInspector.Spectrum = function()
         hsva[2] = Number.constrain(1 - (event.y - this._colorOffset.top) / this.dragHeight, 0, 1);
         this._innerSetColor(hsva,  "", undefined, WebInspector.Spectrum._ChangeSource.Other);
     }
-}
+};
 
 WebInspector.Spectrum._ChangeSource = {
     Input: "Input",
     Model: "Model",
     Other: "Other"
-}
+};
 
 /** @enum {symbol} */
 WebInspector.Spectrum.Events = {
@@ -228,8 +229,8 @@ WebInspector.Spectrum.prototype = {
 
     _focus: function()
     {
-        if (this.isShowing() && WebInspector.currentFocusElement() !== this.contentElement)
-            WebInspector.setCurrentFocusElement(this.contentElement);
+        if (this.isShowing())
+            this.contentElement.focus();
     },
 
     /**
@@ -328,7 +329,7 @@ WebInspector.Spectrum.prototype = {
             this._shadesContainer.appendChild(shadeElement);
         }
 
-        WebInspector.setCurrentFocusElement(this._shadesContainer);
+        this._shadesContainer.focus();
         this._shadesCloseHandler = closeLightnessShades.bind(this, colorElement);
         this._shadesContainer.ownerDocument.addEventListener("mousedown", this._shadesCloseHandler, true);
     },
@@ -775,7 +776,7 @@ WebInspector.Spectrum.prototype = {
             candidateHSVA[V] = 1;
             s = approach(S, s, true);
             if (s !== null)
-                pathBuilder = pathBuilder.concat(["L", s * width, -1])
+                pathBuilder = pathBuilder.concat(["L", s * width, -1]);
         }
 
         this._contrastRatioLine.setAttribute("d", pathBuilder.join(" "));
@@ -895,7 +896,7 @@ WebInspector.Spectrum.prototype = {
 
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /** @typedef {{ title: string, colors: !Array.<string>, mutable: boolean }} */
 WebInspector.Spectrum.Palette;
@@ -919,7 +920,7 @@ WebInspector.Spectrum.PaletteGenerator = function(callback)
     Promise.all(stylesheetPromises)
         .catchException(null)
         .then(this._finish.bind(this));
-}
+};
 
 WebInspector.Spectrum.PaletteGenerator.prototype = {
     /**
@@ -999,7 +1000,7 @@ WebInspector.Spectrum.PaletteGenerator.prototype = {
 
         stylesheet.requestContent().then(parseContent.bind(this));
     }
-}
+};
 
 WebInspector.Spectrum.MaterialPaletteShades = {
     "#F44336": ["#FFEBEE", "#FFCDD2", "#EF9A9A", "#E57373", "#EF5350", "#F44336", "#E53935", "#D32F2F", "#C62828", "#B71C1C"],

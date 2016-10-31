@@ -9,12 +9,15 @@
  * @param {function(!WebInspector.DataGridNode, string, string, string)=} editCallback
  * @param {function(!WebInspector.DataGridNode)=} deleteCallback
  * @param {function()=} refreshCallback
- * @param {function(!WebInspector.ContextMenu, !WebInspector.DataGridNode)=} contextMenuCallback
  */
-WebInspector.ViewportDataGrid = function(columnsArray, editCallback, deleteCallback, refreshCallback, contextMenuCallback)
+WebInspector.ViewportDataGrid = function(columnsArray, editCallback, deleteCallback, refreshCallback)
 {
-    WebInspector.DataGrid.call(this, columnsArray, editCallback, deleteCallback, refreshCallback, contextMenuCallback);
-    this._scrollContainer.addEventListener("scroll", this._onScroll.bind(this), true);
+    WebInspector.DataGrid.call(this, columnsArray, editCallback, deleteCallback, refreshCallback);
+
+    this._onScrollBound = this._onScroll.bind(this);
+    this._scrollContainer.addEventListener("scroll", this._onScrollBound, true);
+
+    // This is not in setScrollContainer because mouse wheel needs to detect events on the content not the scrollbar itself.
     this._scrollContainer.addEventListener("mousewheel", this._onWheel.bind(this), true);
     /** @type {!Array.<!WebInspector.ViewportDataGridNode>} */
     this._visibleNodes = [];
@@ -39,9 +42,23 @@ WebInspector.ViewportDataGrid = function(columnsArray, editCallback, deleteCallb
     this._lastScrollTop = 0;
 
     this.setRootNode(new WebInspector.ViewportDataGridNode());
-}
+};
+
+WebInspector.ViewportDataGrid.Events = {
+    ViewportCalculated: Symbol("ViewportCalculated")
+};
 
 WebInspector.ViewportDataGrid.prototype = {
+    /**
+     * @param {!Element} scrollContainer
+     */
+    setScrollContainer: function(scrollContainer)
+    {
+        this._scrollContainer.removeEventListener("scroll", this._onScrollBound, true);
+        this._scrollContainer = scrollContainer;
+        this._scrollContainer.addEventListener("scroll", this._onScrollBound, true);
+    },
+
     /**
      * @override
      */
@@ -246,6 +263,7 @@ WebInspector.ViewportDataGrid.prototype = {
             this.updateWidths();
         }
         this._visibleNodes = visibleNodes;
+        this.dispatchEventToListeners(WebInspector.ViewportDataGrid.Events.ViewportCalculated);
     },
 
     /**
@@ -273,7 +291,7 @@ WebInspector.ViewportDataGrid.prototype = {
     },
 
     __proto__: WebInspector.DataGrid.prototype
-}
+};
 
 /**
  * @constructor
@@ -286,7 +304,7 @@ WebInspector.ViewportDataGridNode = function(data, hasChildren)
     WebInspector.DataGridNode.call(this, data, hasChildren);
     /** @type {boolean} */
     this._stale = false;
-}
+};
 
 WebInspector.ViewportDataGridNode.prototype = {
     /**
@@ -463,4 +481,4 @@ WebInspector.ViewportDataGridNode.prototype = {
     },
 
     __proto__: WebInspector.DataGridNode.prototype
-}
+};

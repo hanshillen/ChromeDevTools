@@ -18,8 +18,9 @@ WebInspector.TargetsComboBoxController = function(selectElement, elementToHide)
     this._targetToOption = new Map();
 
     WebInspector.context.addFlavorChangeListener(WebInspector.Target, this._targetChangedExternally, this);
+    WebInspector.targetManager.addEventListener(WebInspector.TargetManager.Events.NameChanged, this._targetNameChanged, this);
     WebInspector.targetManager.observeTargets(this, WebInspector.Target.Capability.JS);
-}
+};
 
 WebInspector.TargetsComboBoxController.prototype = {
 
@@ -48,6 +49,16 @@ WebInspector.TargetsComboBoxController.prototype = {
         var option = this._targetToOption.remove(target);
         this._selectElement.removeChild(option);
         this._updateVisibility();
+    },
+
+    /**
+     * @param {!WebInspector.Event} event
+     */
+    _targetNameChanged: function(event)
+    {
+        var target = /** @type {!WebInspector.Target} */ (event.data);
+        var option = this._targetToOption.get(target);
+        option.text = target.name();
     },
 
     _onComboBoxSelectionChange: function()
@@ -85,4 +96,4 @@ WebInspector.TargetsComboBoxController.prototype = {
         this._selectElement.selectedIndex = Array.prototype.indexOf.call(/** @type {?} */ (this._selectElement), option);
     }
 
-}
+};

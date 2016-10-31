@@ -34,7 +34,7 @@ WebInspector.SourcesNavigatorView = function()
 {
     WebInspector.NavigatorView.call(this);
     WebInspector.targetManager.addEventListener(WebInspector.TargetManager.Events.InspectedURLChanged, this._inspectedURLChanged, this);
-}
+};
 
 WebInspector.SourcesNavigatorView.prototype = {
     /**
@@ -59,10 +59,10 @@ WebInspector.SourcesNavigatorView.prototype = {
             return;
         var inspectedURL = mainTarget && mainTarget.inspectedURL();
         if (!inspectedURL)
-            return
+            return;
         for (var node of this._uiSourceCodeNodes.valuesArray()) {
             var uiSourceCode = node.uiSourceCode();
-            if (WebInspector.networkMapping.networkURL(uiSourceCode) === inspectedURL)
+            if (uiSourceCode.url() === inspectedURL)
                 this.revealUISourceCode(uiSourceCode, true);
         }
     },
@@ -73,13 +73,117 @@ WebInspector.SourcesNavigatorView.prototype = {
      */
     uiSourceCodeAdded: function(uiSourceCode)
     {
-        var inspectedPageURL = WebInspector.targetManager.mainTarget().inspectedURL();
-        if (inspectedPageURL && WebInspector.networkMapping.networkURL(uiSourceCode) === inspectedPageURL)
+        var mainTarget = WebInspector.targetManager.mainTarget();
+        var inspectedURL = mainTarget && mainTarget.inspectedURL();
+        if (!inspectedURL)
+            return;
+        if (uiSourceCode.url() === inspectedURL)
+            this.revealUISourceCode(uiSourceCode, true);
+    },
+
+    /**
+     * @override
+     * @param {!Event} event
+     */
+    handleContextMenu: function(event)
+    {
+        var contextMenu = new WebInspector.ContextMenu(event);
+        WebInspector.NavigatorView.appendAddFolderItem(contextMenu);
+        contextMenu.show();
+    },
+
+    __proto__: WebInspector.NavigatorView.prototype
+};
+
+/**
+ * @constructor
+ * @extends {WebInspector.NavigatorView}
+ */
+WebInspector.NetworkNavigatorView = function()
+{
+    WebInspector.NavigatorView.call(this);
+    WebInspector.targetManager.addEventListener(WebInspector.TargetManager.Events.InspectedURLChanged, this._inspectedURLChanged, this);
+};
+
+WebInspector.NetworkNavigatorView.prototype = {
+    /**
+     * @override
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     * @return {boolean}
+     */
+    accept: function(uiSourceCode)
+    {
+        return uiSourceCode.project().type() === WebInspector.projectTypes.Network;
+    },
+
+    /**
+     * @param {!WebInspector.Event} event
+     */
+    _inspectedURLChanged: function(event)
+    {
+        var mainTarget = WebInspector.targetManager.mainTarget();
+        if (event.data !== mainTarget)
+            return;
+        var inspectedURL = mainTarget && mainTarget.inspectedURL();
+        if (!inspectedURL)
+            return;
+        for (var node of this._uiSourceCodeNodes.valuesArray()) {
+            var uiSourceCode = node.uiSourceCode();
+            if (uiSourceCode.url() === inspectedURL)
+                this.revealUISourceCode(uiSourceCode, true);
+        }
+    },
+
+    /**
+     * @override
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     */
+    uiSourceCodeAdded: function(uiSourceCode)
+    {
+        var mainTarget = WebInspector.targetManager.mainTarget();
+        var inspectedURL = mainTarget && mainTarget.inspectedURL();
+        if (!inspectedURL)
+            return;
+        if (uiSourceCode.url() === inspectedURL)
             this.revealUISourceCode(uiSourceCode, true);
     },
 
     __proto__: WebInspector.NavigatorView.prototype
-}
+};
+
+/**
+ * @constructor
+ * @extends {WebInspector.NavigatorView}
+ */
+WebInspector.FilesNavigatorView = function()
+{
+    WebInspector.NavigatorView.call(this);
+};
+
+WebInspector.FilesNavigatorView.prototype = {
+    /**
+     * @override
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     * @return {boolean}
+     */
+    accept: function(uiSourceCode)
+    {
+        return uiSourceCode.project().type() === WebInspector.projectTypes.FileSystem;
+    },
+
+    /**
+     * @override
+     * @param {!Event} event
+     */
+    handleContextMenu: function(event)
+    {
+        var contextMenu = new WebInspector.ContextMenu(event);
+        WebInspector.NavigatorView.appendAddFolderItem(contextMenu);
+        contextMenu.show();
+    },
+
+    __proto__: WebInspector.NavigatorView.prototype
+};
 
 /**
  * @constructor
@@ -88,7 +192,7 @@ WebInspector.SourcesNavigatorView.prototype = {
 WebInspector.ContentScriptsNavigatorView = function()
 {
     WebInspector.NavigatorView.call(this);
-}
+};
 
 WebInspector.ContentScriptsNavigatorView.prototype = {
     /**
@@ -98,13 +202,11 @@ WebInspector.ContentScriptsNavigatorView.prototype = {
      */
     accept: function(uiSourceCode)
     {
-        if (!WebInspector.NavigatorView.prototype.accept(uiSourceCode))
-            return false;
         return uiSourceCode.project().type() === WebInspector.projectTypes.ContentScripts;
     },
 
     __proto__: WebInspector.NavigatorView.prototype
-}
+};
 
 /**
  * @constructor
@@ -113,7 +215,12 @@ WebInspector.ContentScriptsNavigatorView.prototype = {
 WebInspector.SnippetsNavigatorView = function()
 {
     WebInspector.NavigatorView.call(this);
-}
+    var toolbar = new WebInspector.Toolbar("snippets-navigator-toolbar");
+    var newButton = new WebInspector.ToolbarButton(WebInspector.UIString("New"), "add-toolbar-item");
+    newButton.addEventListener("click", this._handleCreateSnippet.bind(this));
+    toolbar.appendToolbarItem(newButton);
+    this.element.insertBefore(toolbar.element, this.element.firstChild);
+};
 
 WebInspector.SnippetsNavigatorView.prototype = {
     /**
@@ -123,8 +230,6 @@ WebInspector.SnippetsNavigatorView.prototype = {
      */
     accept: function(uiSourceCode)
     {
-        if (!WebInspector.NavigatorView.prototype.accept(uiSourceCode))
-            return false;
         return uiSourceCode.project().type() === WebInspector.projectTypes.Snippets;
     },
 
@@ -202,4 +307,4 @@ WebInspector.SnippetsNavigatorView.prototype = {
     },
 
     __proto__: WebInspector.NavigatorView.prototype
-}
+};

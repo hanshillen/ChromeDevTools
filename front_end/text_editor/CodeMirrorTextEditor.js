@@ -47,10 +47,11 @@ WebInspector.CodeMirrorTextEditor = function(options)
     this._codeMirror = new window.CodeMirror(this.element, {
         lineNumbers: options.lineNumbers,
         matchBrackets: true,
-        smartIndent: false,
+        smartIndent: true,
         styleSelectedText: true,
-        electricChars: false,
+        electricChars: true,
         styleActiveLine: true,
+        indentUnit: 4,
         lineWrapping: options.lineWrapping
     });
     this._codeMirrorElement = this.element.lastElementChild;
@@ -109,6 +110,8 @@ WebInspector.CodeMirrorTextEditor = function(options)
         "Alt-Right": "goGroupRight",
         "Ctrl-Left": "moveCamelLeft",
         "Ctrl-Right": "moveCamelRight",
+        "Ctrl-A": "goLineLeft",
+        "Ctrl-E": "goLineRight",
         "Shift-Ctrl-Left": "selectCamelLeft",
         "Shift-Ctrl-Right": "selectCamelRight",
         "Cmd-Left": "goLineStartSmart",
@@ -167,7 +170,7 @@ WebInspector.CodeMirrorTextEditor = function(options)
         this.setMimeType(options.mimeType);
     if (options.autoHeight)
         this._codeMirror.setSize(null, "auto");
-}
+};
 
 WebInspector.CodeMirrorTextEditor.maxHighlightLength = 1000;
 
@@ -179,7 +182,7 @@ WebInspector.CodeMirrorTextEditor.autocompleteCommand = function(codeMirror)
     var autocompleteController = codeMirror._codeMirrorTextEditor._autocompleteController;
     if (autocompleteController)
         autocompleteController.autocomplete();
-}
+};
 CodeMirror.commands.autocomplete = WebInspector.CodeMirrorTextEditor.autocompleteCommand;
 
 /**
@@ -188,7 +191,7 @@ CodeMirror.commands.autocomplete = WebInspector.CodeMirrorTextEditor.autocomplet
 WebInspector.CodeMirrorTextEditor.undoLastSelectionCommand = function(codeMirror)
 {
     codeMirror._codeMirrorTextEditor._selectNextOccurrenceController.undoLastSelection();
-}
+};
 CodeMirror.commands.undoLastSelection = WebInspector.CodeMirrorTextEditor.undoLastSelectionCommand;
 
 /**
@@ -197,7 +200,7 @@ CodeMirror.commands.undoLastSelection = WebInspector.CodeMirrorTextEditor.undoLa
 WebInspector.CodeMirrorTextEditor.selectNextOccurrenceCommand = function(codeMirror)
 {
     codeMirror._codeMirrorTextEditor._selectNextOccurrenceController.selectNextOccurrence();
-}
+};
 CodeMirror.commands.selectNextOccurrence = WebInspector.CodeMirrorTextEditor.selectNextOccurrenceCommand;
 
 /**
@@ -207,7 +210,7 @@ CodeMirror.commands.selectNextOccurrence = WebInspector.CodeMirrorTextEditor.sel
 WebInspector.CodeMirrorTextEditor.moveCamelLeftCommand = function(shift, codeMirror)
 {
     codeMirror._codeMirrorTextEditor._doCamelCaseMovement(-1, shift);
-}
+};
 CodeMirror.commands.moveCamelLeft = WebInspector.CodeMirrorTextEditor.moveCamelLeftCommand.bind(null, false);
 CodeMirror.commands.selectCamelLeft = WebInspector.CodeMirrorTextEditor.moveCamelLeftCommand.bind(null, true);
 
@@ -218,7 +221,7 @@ CodeMirror.commands.selectCamelLeft = WebInspector.CodeMirrorTextEditor.moveCame
 WebInspector.CodeMirrorTextEditor.moveCamelRightCommand = function(shift, codeMirror)
 {
     codeMirror._codeMirrorTextEditor._doCamelCaseMovement(1, shift);
-}
+};
 CodeMirror.commands.moveCamelRight = WebInspector.CodeMirrorTextEditor.moveCamelRightCommand.bind(null, false);
 CodeMirror.commands.selectCamelRight = WebInspector.CodeMirrorTextEditor.moveCamelRightCommand.bind(null, true);
 
@@ -244,7 +247,7 @@ CodeMirror.commands.gotoMatchingBracket = function(codeMirror)
         });
     }
     codeMirror.setSelections(updatedSelections);
-}
+};
 
 /**
  * @param {!CodeMirror} codemirror
@@ -258,7 +261,7 @@ CodeMirror.commands.undoAndReveal = function(codemirror)
     var autocompleteController = codemirror._codeMirrorTextEditor._autocompleteController;
     if (autocompleteController)
         autocompleteController.clearAutocomplete();
-}
+};
 
 /**
  * @param {!CodeMirror} codemirror
@@ -272,7 +275,7 @@ CodeMirror.commands.redoAndReveal = function(codemirror)
     var autocompleteController = codemirror._codeMirrorTextEditor._autocompleteController;
     if (autocompleteController)
         autocompleteController.clearAutocomplete();
-}
+};
 
 /**
  * @return {!Object|undefined}
@@ -291,7 +294,7 @@ CodeMirror.commands.dismiss = function(codemirror)
 
     codemirror.setSelection(selection.anchor, selection.head, {scroll: false});
     codemirror._codeMirrorTextEditor.scrollLineIntoView(selection.anchor.line);
-}
+};
 
 /**
  * @return {!Object|undefined}
@@ -301,7 +304,7 @@ CodeMirror.commands.smartPageUp = function(codemirror)
     if (codemirror._codeMirrorTextEditor.selection().equal(WebInspector.TextRange.createFromLocation(0, 0)))
         return CodeMirror.Pass;
     codemirror.execCommand("goPageUp");
-}
+};
 
 /**
  * @return {!Object|undefined}
@@ -311,7 +314,7 @@ CodeMirror.commands.smartPageDown = function(codemirror)
     if (codemirror._codeMirrorTextEditor.selection().equal(codemirror._codeMirrorTextEditor.fullRange().collapseToEnd()))
         return CodeMirror.Pass;
     codemirror.execCommand("goPageDown");
-}
+};
 
 /**
  * @param {string} quoteCharacter
@@ -336,7 +339,7 @@ WebInspector.CodeMirrorTextEditor._maybeAvoidSmartQuotes = function(quoteCharact
     if (tokenValue[0] === tokenValue[tokenValue.length - 1] && (tokenValue[0] === "'" || tokenValue[0] === "\""))
         return CodeMirror.Pass;
     codeMirror.replaceSelection(quoteCharacter);
-}
+};
 CodeMirror.commands.maybeAvoidSmartSingleQuotes = WebInspector.CodeMirrorTextEditor._maybeAvoidSmartQuotes.bind(null, "'");
 CodeMirror.commands.maybeAvoidSmartDoubleQuotes = WebInspector.CodeMirrorTextEditor._maybeAvoidSmartQuotes.bind(null, "\"");
 
@@ -695,27 +698,7 @@ WebInspector.CodeMirrorTextEditor.prototype = {
 
     /**
      * @param {string} mimeType
-     */
-    _updateCodeMirrorMode: function(mimeType)
-    {
-        this._codeMirror.setOption("mode", mimeType);
-        WebInspector.CodeMirrorTextEditor._loadMimeTypeModes(mimeType, innerUpdateCodeMirrorMode.bind(this));
-
-        /**
-         * @this WebInspector.CodeMirrorTextEditor
-         */
-        function innerUpdateCodeMirrorMode()
-        {
-            this._mimeTypeModesLoadedForTest();
-            this._updateCodeMirrorMode(mimeType);
-        }
-    },
-
-    // Do not remove, this function is sniffed in tests.
-    _mimeTypeModesLoadedForTest: function() { },
-
-    /**
-     * @param {string} mimeType
+     * @return {!Promise}
      */
     setMimeType: function(mimeType)
     {
@@ -723,7 +706,7 @@ WebInspector.CodeMirrorTextEditor.prototype = {
             this._enableLongLinesMode();
         else
             this._disableLongLinesMode();
-        this._updateCodeMirrorMode(mimeType);
+        return WebInspector.CodeMirrorTextEditor._loadMimeTypeModes(mimeType).then(() => this._codeMirror.setOption("mode", mimeType));
     },
 
     /**
@@ -898,7 +881,7 @@ WebInspector.CodeMirrorTextEditor.prototype = {
         function innerUpdateDecorations(decoration)
         {
             if (decoration.update)
-                decoration.update()
+                decoration.update();
         }
     },
 
@@ -919,7 +902,7 @@ WebInspector.CodeMirrorTextEditor.prototype = {
             if (decoration.element !== element)
                 return;
             this._codeMirror.removeLineWidget(decoration.widget);
-            this._decorations.remove(lineNumber, decoration)
+            this._decorations.remove(lineNumber, decoration);
         }
     },
 
@@ -1268,6 +1251,14 @@ WebInspector.CodeMirrorTextEditor.prototype = {
     },
 
     /**
+     * @override
+     */
+    newlineAndIndent: function()
+    {
+        this._codeMirror.execCommand("newlineAndIndent");
+    },
+
+    /**
      * @param {number} line
      * @param {string} name
      * @param {?Object} value
@@ -1318,7 +1309,7 @@ WebInspector.CodeMirrorTextEditor.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -1331,7 +1322,7 @@ WebInspector.CodeMirrorPositionHandle = function(codeMirror, pos)
     this._codeMirror = codeMirror;
     this._lineHandle = codeMirror.getLineHandle(pos.line);
     this._columnNumber = pos.ch;
-}
+};
 
 WebInspector.CodeMirrorPositionHandle.prototype = {
     /**
@@ -1358,7 +1349,7 @@ WebInspector.CodeMirrorPositionHandle.prototype = {
     {
         return positionHandle._lineHandle === this._lineHandle && positionHandle._columnNumber === this._columnNumber && positionHandle._codeMirror === this._codeMirror;
     }
-}
+};
 
 /**
  * @constructor
@@ -1409,7 +1400,7 @@ WebInspector.CodeMirrorTextEditor.FixWordMovement = function(codeMirror)
     keyMap["Shift-" + leftKey] = moveLeft.bind(null, true);
     keyMap["Shift-" + rightKey] = moveRight.bind(null, true);
     codeMirror.addKeyMap(keyMap);
-}
+};
 
 /**
  * @constructor
@@ -1420,7 +1411,7 @@ WebInspector.CodeMirrorTextEditor.SelectNextOccurrenceController = function(text
 {
     this._textEditor = textEditor;
     this._codeMirror = codeMirror;
-}
+};
 
 WebInspector.CodeMirrorTextEditor.SelectNextOccurrenceController.prototype = {
     selectionWillChange: function()
@@ -1549,7 +1540,7 @@ WebInspector.CodeMirrorTextEditor.SelectNextOccurrenceController.prototype = {
             return null;
         return new WebInspector.TextRange(matchedLineNumber, matchedColumnNumber, matchedLineNumber, matchedColumnNumber + textToFind.length);
     }
-}
+};
 
 /**
  * @param {string} modeName
@@ -1581,12 +1572,12 @@ WebInspector.CodeMirrorTextEditor._overrideModeWithPrefixedTokens = function(mod
         var token = superToken(stream, state);
         return token ? tokenPrefix + token.split(/ +/).join(" " + tokenPrefix) : token;
     }
-}
+};
 
 /**
  * @interface
  */
-WebInspector.TextEditorPositionHandle = function() {}
+WebInspector.TextEditorPositionHandle = function() {};
 
 WebInspector.TextEditorPositionHandle.prototype = {
     /**
@@ -1599,7 +1590,7 @@ WebInspector.TextEditorPositionHandle.prototype = {
      * @return {boolean}
      */
     equal: function(positionHandle) { }
-}
+};
 
 WebInspector.CodeMirrorTextEditor._overrideModeWithPrefixedTokens("css", "css-");
 WebInspector.CodeMirrorTextEditor._overrideModeWithPrefixedTokens("javascript", "js-");
@@ -1610,9 +1601,9 @@ WebInspector.CodeMirrorTextEditor._loadedMimeModeExtensions = new Set();
 
 /**
  * @param {string} mimeType
- * @param {function()} callback
+ * @return {!Promise}
  */
-WebInspector.CodeMirrorTextEditor._loadMimeTypeModes = function(mimeType, callback)
+WebInspector.CodeMirrorTextEditor._loadMimeTypeModes = function(mimeType)
 {
     var installed = WebInspector.CodeMirrorTextEditor._loadedMimeModeExtensions;
 
@@ -1639,8 +1630,7 @@ WebInspector.CodeMirrorTextEditor._loadMimeTypeModes = function(mimeType, callba
     var promises = [];
     for (var extension of modesToLoad)
         promises.push(extension.instance().then(installMode.bind(null, extension)));
-    if (promises.length)
-        Promise.all(promises).then(callback);
+    return Promise.all(promises);
 
     /**
      * @param {!Runtime.Extension} extension
@@ -1654,21 +1644,21 @@ WebInspector.CodeMirrorTextEditor._loadMimeTypeModes = function(mimeType, callba
         mode.install(extension);
         installed.add(extension);
     }
-}
+};
 
 /**
  * @interface
  */
 WebInspector.CodeMirrorMimeMode = function()
 {
-}
+};
 
 WebInspector.CodeMirrorMimeMode.prototype = {
     /**
      * @param {!Runtime.Extension} extension
      */
     install: function(extension) { }
-}
+};
 
 /**
  * @constructor
@@ -1683,7 +1673,7 @@ WebInspector.TextEditorBookMark = function(marker, type, editor)
     this._marker = marker;
     this._type = type;
     this._editor = editor;
-}
+};
 
 WebInspector.TextEditorBookMark._symbol = Symbol("WebInspector.TextEditorBookMark");
 
@@ -1692,6 +1682,14 @@ WebInspector.TextEditorBookMark.prototype = {
     {
         var position = this._marker.find();
         this._marker.clear();
+        if (position)
+            this._editor._updateDecorations(position.line);
+    },
+
+    refresh: function()
+    {
+        this._marker.changed();
+        var position = this._marker.find();
         if (position)
             this._editor._updateDecorations(position.line);
     },
@@ -1705,14 +1703,14 @@ WebInspector.TextEditorBookMark.prototype = {
     },
 
     /**
-     * @return {!WebInspector.TextRange}
+     * @return {?WebInspector.TextRange}
      */
     position: function()
     {
         var pos = this._marker.find();
-        return WebInspector.TextRange.createFromLocation(pos.line, pos.ch);
+        return pos ? WebInspector.TextRange.createFromLocation(pos.line, pos.ch) : null;
     }
-}
+};
 
 /**
  * @typedef {{
@@ -1729,7 +1727,7 @@ WebInspector.CodeMirrorTextEditor.Decoration;
  */
 WebInspector.CodeMirrorTextEditorFactory = function()
 {
-}
+};
 
 WebInspector.CodeMirrorTextEditorFactory.prototype = {
     /**
@@ -1741,5 +1739,5 @@ WebInspector.CodeMirrorTextEditorFactory.prototype = {
     {
         return new WebInspector.CodeMirrorTextEditor(options);
     }
-}
+};
 

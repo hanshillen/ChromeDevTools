@@ -7,7 +7,7 @@
  */
 WebInspector.RemoteObjectPreviewFormatter = function()
 {
-}
+};
 
 WebInspector.RemoteObjectPreviewFormatter.prototype = {
     /**
@@ -155,7 +155,6 @@ WebInspector.RemoteObjectPreviewFormatter.prototype = {
         }
 
         if (type === "object" && subtype === "node" && description) {
-            span.classList.add("object-value-preview-node");
             WebInspector.keyboardManager.registerNode(span, 'log', ['logRowObject'], -1);
             WebInspector.DOMPresentationUtils.createSpansForNodeTitle(span, description);
             return span;
@@ -175,4 +174,4 @@ WebInspector.RemoteObjectPreviewFormatter.prototype = {
         span.textContent = description;
         return span;
     }
-}
+};

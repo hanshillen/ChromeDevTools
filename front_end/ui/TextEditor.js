@@ -7,7 +7,7 @@
  */
 WebInspector.TextEditorFactory = function()
 {
-}
+};
 
 WebInspector.TextEditorFactory.prototype = {
     /**
@@ -15,14 +15,14 @@ WebInspector.TextEditorFactory.prototype = {
      * @return {!WebInspector.TextEditor}
      */
     createEditor: function(options) { }
-}
+};
 
 /**
  * @interface
  */
 WebInspector.TextEditor = function()
 {
-}
+};
 
 WebInspector.TextEditor.prototype = {
 
@@ -63,6 +63,8 @@ WebInspector.TextEditor.prototype = {
      */
     line: function(lineNumber) { },
 
+    newlineAndIndent: function() { },
+
     /**
      * @param {function(!KeyboardEvent)} handler
      */
@@ -74,7 +76,7 @@ WebInspector.TextEditor.prototype = {
     configureAutocomplete: function(config) { },
 
     clearAutocomplete: function() { }
-}
+};
 
 /**
  * @typedef {{
@@ -84,7 +86,7 @@ WebInspector.TextEditor.prototype = {
  *  mimeType: (string|undefined),
  *  autoHeight: (boolean|undefined)
  * }}
- **/
+ */
 WebInspector.TextEditor.Options;
 
 /**
@@ -94,5 +96,5 @@ WebInspector.TextEditor.Options;
  *     isWordChar: ((function(string):boolean)|undefined),
  *     captureEnter: (boolean|undefined)
  * }}
- **/
+ */
 WebInspector.AutocompleteConfig;

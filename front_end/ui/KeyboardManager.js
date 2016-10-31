@@ -9,7 +9,7 @@
  */
 WebInspector.KeyboardManager = function(doc)
 {
-    doc.addEventListener("keydown", this._handleGlobalKeyDown.bind(this), true);
+    doc.addEventListener("keydown", this._handleGlobalKeyDown.bind(this), false);
 
     // TODO: come up with elegant way for proper keyboard support for context
     // menus on OSX
@@ -42,7 +42,7 @@ WebInspector.KeyboardManager.prototype = {
         /*
          * only handle nodes and keys commonly used for navigation
          */
-        var target = WebInspector.currentFocusElement()
+        var target = event.path[0]; // TODO: originally WebInspector.currentFocus was used here, but this has been removed 
         if (!target || !target.dataset || target.dataset.keyNav === undefined
                 || this._keys.navKeys.indexOf(event.keyCode) === -1) {
             return;
@@ -195,14 +195,13 @@ WebInspector.KeyboardManager.prototype = {
     /**
      * @param {!Node} node
      * @param {string} selector
-     * @param {boolean} useOffsetParent
+     * @param {boolean} crossShadow
      * @return {?Node} 
      */
-    _findClosest: function(node, selector, useOffsetParent)
+    _findClosest: function(node, selector, crossShadow)
     {
-        if (useOffsetParent) {
-            // TODO: inaccurate hack, find proper way to get closest from within
-            // shadow DOM
+        if (crossShadow) {
+            // TODO: inaccurate hack, find proper way to get closest ancestor from within shadow DOM
             node = node.offsetParent
         }
         if (!node || !node.closest) {
@@ -210,6 +209,26 @@ WebInspector.KeyboardManager.prototype = {
         }
 
         return node.closest(selector);
+    },
+    
+    /**
+     * @param {!Node} node
+     * @param {string} innerSelector
+     * @param {string} outerSelector
+     * @return {?Node} 
+     */
+    _findClosestFromShadow: function(node, innerSelector, outerSelector)
+    {
+        if (!node || !node.closest) {
+            return null;
+        }
+        var innerNode = node.closest(innerSelector);
+        if (!innerNode || !innerNode.offsetParent) {
+            return null;
+        }
+        // TODO: inaccurate hack, find proper way to get closest ancestor from within shadow DOM
+        var outerNode = innerNode.offsetParent
+        return outerNode.closest(outerSelector);
     },
     
     /**
@@ -238,6 +257,21 @@ WebInspector.KeyboardManager.prototype = {
     
     /**
      * @param {!Node} node
+     * @param {string} outerSelector
+     * @param {string} innerSelector
+     * @return {?Node} 
+     */
+    _shadowQueryLast: function(node, outerSelector, innerSelector)
+    {
+        var shadowHost = this.matches(node, outerSelector) ? node : this._query(node, outerSelector);
+        if (!shadowHost || !shadowHost.shadowRoot) {
+            return null;
+        }
+        return this._queryLast(shadowHost.shadowRoot, innerSelector);
+    },
+    
+    /**
+     * @param {!Node} node
      * @param {string} selector
      * @return {NodeList} 
      */
@@ -257,7 +291,7 @@ WebInspector.KeyboardManager.prototype = {
      */
     _shadowQuery: function(node, outerSelector, innerSelector)
     {
-        var shadowHost = this._query(node, outerSelector);
+        var shadowHost = this.matches(node, outerSelector) ? node : this._query(node, outerSelector);
         if (!shadowHost || !shadowHost.shadowRoot) {
             return null;
         }
@@ -344,7 +378,7 @@ WebInspector.KeyboardManager.prototype = {
             if (keyInfo.isHorizontal || keyInfo.isEdge) {
                 foundNode = this._logHandleHorizontalNav(target, keyInfo, keyInfo.isEdge);
             } else if (keyInfo.isEnter) {
-                if (this._query(target, this._selectors.util.shadowHost)) {
+                if (this.matches(target, this._selectors.util.shadowHost) || this._query(target, this._selectors.util.shadowHost)) {
                     this._click(this._shadowQuery(target, this._selectors.util.shadowHost, this._selectors.util.shadowClickTarget));
                 } else {
                     this._click(target);
@@ -395,7 +429,7 @@ WebInspector.KeyboardManager.prototype = {
                 event.consume(true);
                 break;
             case keys.Right.code:
-            case Keys.Down.code:
+            case keys.Down.code:
                 foundNode = this._findSibling(target, this._selectors.tabs.tab, true);
                 event.consume(true);
                 break;
@@ -463,8 +497,7 @@ WebInspector.KeyboardManager.prototype = {
             }
             break;
         case "group":
-            foundNode = this._findAdjacentTreeSectionTitle(target,
-                    keyInfo.isForward, true);
+            foundNode = this._findAdjacentTreeSectionTitle(target, keyInfo.isForward, true);
             break;
         case "section":
             foundNode = this._findAdjacentTreeSeparator(target,
@@ -487,9 +520,10 @@ WebInspector.KeyboardManager.prototype = {
             return null;
         }
         // 1. Attempt navigation between declarations inside ruleset
-        if (!this.matches(branch, this._selectors.tree.group)) {
+        if (this.matches(branch, this._selectors.tree.outline)) {
             if (isForward
                     && this.matches(startNode, this._selectors.tree.expandedParent)) {
+                //navigate into next expanded item
                 foundNode = this._findFirstExpandedChild(startNode,
                         this._selectors.tree.expandedGroup);
             } else {
@@ -498,12 +532,13 @@ WebInspector.KeyboardManager.prototype = {
             }
             if (foundNode && !isForward
                     && this.matches(foundNode, this._selectors.tree.expandedParent)) {
+                //navigate into previous expanded item
                 groupNode = this._findSibling(foundNode,
                         this._selectors.tree.expandedGroup, true);
                 foundNode = this._queryLast(groupNode, this._selectors.tree.item);
             }
         } else {
-            // nested (expanded) declarations
+            // start from nested (expanded) declarations
             foundNode = this._findSibling(startNode, this._selectors.tree.item,
                     isForward);
             if (!foundNode) {
@@ -514,7 +549,7 @@ WebInspector.KeyboardManager.prototype = {
         // 2. No declaration found, attempt navigation to nearest selector
         if (!foundNode) {
             foundNode = isForward ? this._findAdjacentTreeSectionTitle(branch,
-                    true, false) : this._findCurrentTreeSectionTitle(branch);
+                    true, false) : this._findCurrentTreeSectionTitle(branch, true);
         }
         // 3. No selector found (would only happen with forward navigation),
         // attempt to find adjacent separator
@@ -527,18 +562,20 @@ WebInspector.KeyboardManager.prototype = {
     
     /**
      * @param {Node} startNode
+     * @param {boolean} crossShadow
      * @return {?Node}
      */
-    _findCurrentTreeSectionTitle: function(startNode)
+    _findCurrentTreeSectionTitle: function(startNode, crossShadow)
     {
         var parent;
-        parent = this._findClosest(startNode, this._selectors.tree.section);
+        parent = this._findClosest(startNode, this._selectors.tree.section, crossShadow);
         return this._query(parent, this._selectors.tree.groupTitle);
     },
     
     /**
      * @param {Node} startNode
      * @param {boolean} isforward
+     * @param {boolean} extendPastSeparator
      * @return {?Node}
      */
     _findAdjacentTreeSectionTitle: function(startNode, isForward,
@@ -547,9 +584,13 @@ WebInspector.KeyboardManager.prototype = {
         var selector = !extendPastSeparator ? this._selectors.tree.sectionOrSeperator
                 : this._selectors.tree.section;
         var parent, adjacentNode, foundNode;
-        var includeSelf = this.matches(startNode, this._selectors.tree.item);
-        parent = this._findClosest(startNode, this._selectors.tree.sectionOrSeperator);
-        if (!isForward && includeSelf) {
+        var includeCurrent = false;
+        parent = this._findClosestTreeSection(startNode);
+        if (this.matches(startNode, this._selectors.tree.item, this._selectors.tree.group)) {
+            includeCurrent = !isForward;
+        }
+        
+        if (!isForward && includeCurrent) {
             adjacentNode = this._query(parent, this._selectors.tree.groupTitle);
         } else {
             adjacentNode = this._findSibling(parent, selector, isForward);
@@ -557,7 +598,7 @@ WebInspector.KeyboardManager.prototype = {
         if (!adjacentNode || this.matches(adjacentNode, this._selectors.tree.separator)) {
             return null;
         }
-        return this._findCurrentTreeSectionTitle(adjacentNode);
+        return this._findCurrentTreeSectionTitle(adjacentNode, false);
     },
     
     /**
@@ -568,7 +609,7 @@ WebInspector.KeyboardManager.prototype = {
     _findAdjacentTreeSeparator: function(startNode, isForward)
     {
         var parent, foundNode;
-        parent = this._findClosest(startNode, this._selectors.tree.sectionOrSeperator);
+        parent = this._findClosestTreeSection(startNode); 
         foundNode = this._findSibling(parent, this._selectors.tree.separator, isForward);
         if (!foundNode && !isForward) {
             parent = this._findFirstSibling(parent,
@@ -576,6 +617,17 @@ WebInspector.KeyboardManager.prototype = {
             foundNode = this._query(parent, this._selectors.tree.groupTitle);
         }
         return foundNode
+    },
+    
+    _findClosestTreeSection: function(startNode) {
+        var parent;
+        if (this.matches(startNode, this._selectors.tree.item, this._selectors.tree.group)) {
+            parent = this._findClosestFromShadow(startNode, this._selectors.tree.outline, this._selectors.tree.sectionOrSeperator);
+        }
+        else {
+            parent = this._findClosest(startNode, this._selectors.tree.sectionOrSeperator);
+        }
+        return parent;
     },
     
     /**
@@ -588,12 +640,12 @@ WebInspector.KeyboardManager.prototype = {
         var group, foundNode;
         if (isForward) {
             group = this._findSibling(startNode, this._selectors.tree.group, true);
-            foundNode = this._query(group, this._selectors.tree.item);
+            foundNode = this._shadowQuery(group, this._selectors.util.shadowHost, this._selectors.tree.item);
         } else {
             group = this._findSibling(this._findClosest(startNode,
-                    this._selectors.tree.section), this._selectors.tree.sectionOrSeperator, false);
+                    this._selectors.tree.section, true), this._selectors.tree.sectionOrSeperator, false);
             foundNode = this.matches(group, this._selectors.tree.separator) ? group
-                    : this._queryLast(group, this._selectors.tree.visibleItems);
+                    : this._shadowQueryLast(group, this._selectors.util.shadowHost, this._selectors.tree.visibleItems);
         }
         return foundNode;
     },
@@ -611,7 +663,7 @@ WebInspector.KeyboardManager.prototype = {
         }
         group = this._findSibling(startNode, this._selectors.tree.section, isForward);
         foundNode = isForward ? this._query(group, this._selectors.tree.groupTitle)
-                : this._queryLast(group, this._selectors.tree.visibleItems);
+                : this._shadowQueryLast(group, this._selectors.util.shadowHost, this._selectors.tree.visibleItems);
         return foundNode;
     },
     
@@ -671,7 +723,7 @@ WebInspector.KeyboardManager.prototype = {
      * @return {boolean}
      */
     focus: function(node, roving, oldNode) {
-        // console.log("focus %o", node);
+         console.log("focus %o", node);
         if (!this.enableA11y) {
             return false;
         }
@@ -733,10 +785,20 @@ WebInspector.KeyboardManager.prototype = {
                 node.dataset[dataAttribute] = '';
             }    
         }
-        var makeFocusable = tabIndex !== undefined;
-        if (makeFocusable) {
-            node.tabIndex = tabIndex;
+        if (tabIndex !== undefined) {
+            this.makeFocusable(node, tabIndex === 0);
         }  
+    },
+    
+    /**
+     * @param {Node} node
+     * @param {boolean} addToTabOrder
+     */
+    makeFocusable: function(node, addToTabOrder) {
+        if (!node) {
+            return null;
+        }
+        node.tabIndex = addToTabOrder ? 0 : -1;
     }
 };
 
@@ -777,6 +839,7 @@ WebInspector.KeyboardManager.setProperties = function() {
 
     // tree structure
     selectors.tree = {
+        outline: "[data-tree-outline]",
         groupTitle: "[data-tree-group-title]",
         group: "[data-tree-group]",
         separator: "[data-tree-separator]",
@@ -790,9 +853,8 @@ WebInspector.KeyboardManager.setProperties = function() {
     selectors.tree.expandedGroup = selectors.tree.group + ".expanded";
     selectors.tree.expandedItem = selectors.tree.expandedGroup + ">"
         + selectors.tree.item;
-    selectors.tree.visibleItems = selectors.tree.section + ">" + selectors.tree.group + ">"
-        + selectors.tree.item + "," + selectors.tree.expandedGroup + ">"
-        + selectors.tree.item;
+    selectors.tree.visibleItems = selectors.tree.outline + ">" + selectors.tree.item + "," 
+        + selectors.tree.expandedGroup + ">" + selectors.tree.item;
     selectors.tree.sectionOrSeperator =  selectors.tree.separator + "," + selectors.tree.section;
 
     // Log (e.g. console panel output)
@@ -807,7 +869,7 @@ WebInspector.KeyboardManager.setProperties = function() {
 
     selectors.toolbar = {
         group: "[data-toolbar]",
-      // TODO: /deep/ is deprecated, alternative?
+        // TODO: /deep/ is deprecated, alternative?
         item: "* /deep/ [data-toolbar-item]"
     }
     WebInspector.KeyboardManager.prototype._selectors = selectors;

@@ -27,15 +27,26 @@ WebInspector.TimelinePaintProfilerView = function(frameModel)
 
     this._logTreeView = new WebInspector.PaintProfilerCommandLogView();
     this._logAndImageSplitWidget.setSidebarWidget(this._logTreeView);
-}
+};
 
 WebInspector.TimelinePaintProfilerView.prototype = {
     wasShown: function()
     {
-        if (this._updateWhenVisible) {
-            this._updateWhenVisible = false;
+        if (this._needsUpdateWhenVisible) {
+            this._needsUpdateWhenVisible = false;
             this._update();
         }
+    },
+
+    /**
+     * @param {!WebInspector.PaintProfilerSnapshot} snapshot
+     */
+    setSnapshot: function(snapshot)
+    {
+        this._releaseSnapshot();
+        this._pendingSnapshot = snapshot;
+        this._event = null;
+        this._updateWhenVisible();
     },
 
     /**
@@ -45,15 +56,12 @@ WebInspector.TimelinePaintProfilerView.prototype = {
      */
     setEvent: function(target, event)
     {
-        this._disposeSnapshot();
+        this._releaseSnapshot();
         this._target = target;
+        this._pendingSnapshot = null;
         this._event = event;
 
-        if (this.isShowing())
-            this._update();
-        else
-            this._updateWhenVisible = true;
-
+        this._updateWhenVisible();
         if (this._event.name === WebInspector.TimelineModel.RecordType.Paint)
             return !!event.picture;
         if (this._event.name === WebInspector.TimelineModel.RecordType.RasterTask)
@@ -61,43 +69,43 @@ WebInspector.TimelinePaintProfilerView.prototype = {
         return false;
     },
 
+    _updateWhenVisible: function()
+    {
+        if (this.isShowing())
+            this._update();
+        else
+            this._needsUpdateWhenVisible = true;
+    },
+
     _update: function()
     {
         this._logTreeView.setCommandLog(null, []);
         this._paintProfilerView.setSnapshotAndLog(null, [], null);
 
-        if (this._event.name === WebInspector.TimelineModel.RecordType.Paint)
-            this._event.picture.requestObject(onDataAvailable.bind(this));
-        else if (this._event.name === WebInspector.TimelineModel.RecordType.RasterTask)
-            this._frameModel.requestRasterTile(this._event, onSnapshotLoaded.bind(this))
-        else
-            console.assert(false, "Unexpected event type: " + this._event.name);
-
-        /**
-         * @param {!Object} data
-         * @this WebInspector.TimelinePaintProfilerView
-         */
-        function onDataAvailable(data)
-        {
-            if (data)
-                WebInspector.PaintProfilerSnapshot.load(this._target, data["skp64"], onSnapshotLoaded.bind(this, null));
+        var snapshotPromise;
+        if (this._pendingSnapshot)
+            snapshotPromise = Promise.resolve({rect: null, snapshot: this._pendingSnapshot});
+        else if (this._event.name === WebInspector.TimelineModel.RecordType.Paint) {
+            snapshotPromise = this._event.picture.objectPromise()
+                .then(data => WebInspector.PaintProfilerSnapshot.load(this._target, data["skp64"]))
+                .then(snapshot => snapshot && {rect: null, snapshot: snapshot});
+        } else if (this._event.name === WebInspector.TimelineModel.RecordType.RasterTask) {
+            snapshotPromise = this._frameModel.rasterTilePromise(this._event);
+        } else {
+            console.assert(false, "Unexpected event type or no snapshot");
+            return;
         }
-        /**
-         * @param {?DOMAgent.Rect} tileRect
-         * @param {?WebInspector.PaintProfilerSnapshot} snapshot
-         * @this WebInspector.TimelinePaintProfilerView
-         */
-        function onSnapshotLoaded(tileRect, snapshot)
-        {
-            this._disposeSnapshot();
-            this._lastLoadedSnapshot = snapshot;
-            this._imageView.setMask(tileRect);
-            if (!snapshot) {
+        snapshotPromise.then(snapshotWithRect => {
+            this._releaseSnapshot();
+            if (!snapshotWithRect) {
                 this._imageView.showImage();
                 return;
             }
-            snapshot.commandLog(onCommandLogDone.bind(this, snapshot, tileRect));
-        }
+            var snapshot = snapshotWithRect.snapshot;
+            this._lastLoadedSnapshot = snapshot;
+            this._imageView.setMask(snapshotWithRect.rect);
+            snapshot.commandLog().then(log => onCommandLogDone.call(this, snapshot, snapshotWithRect.rect, log));
+        });
 
         /**
          * @param {!WebInspector.PaintProfilerSnapshot} snapshot
@@ -112,18 +120,17 @@ WebInspector.TimelinePaintProfilerView.prototype = {
         }
     },
 
-    _disposeSnapshot: function()
+    _releaseSnapshot: function()
     {
         if (!this._lastLoadedSnapshot)
             return;
-        this._lastLoadedSnapshot.dispose();
+        this._lastLoadedSnapshot.release();
         this._lastLoadedSnapshot = null;
     },
 
     _onWindowChanged: function()
     {
-        var window = this._paintProfilerView.windowBoundaries();
-        this._logTreeView.updateWindow(window.left, window.right);
+        this._logTreeView.updateWindow(this._paintProfilerView.selectionWindow());
     },
 
     __proto__: WebInspector.SplitWidget.prototype
@@ -135,16 +142,17 @@ WebInspector.TimelinePaintProfilerView.prototype = {
  */
 WebInspector.TimelinePaintImageView = function()
 {
-    WebInspector.Widget.call(this);
-    this.element.classList.add("fill", "paint-profiler-image-view");
-    this._imageContainer = this.element.createChild("div", "paint-profiler-image-container");
+    WebInspector.Widget.call(this, true);
+    this.registerRequiredCSS("timeline/timelinePaintProfiler.css");
+    this.contentElement.classList.add("fill", "paint-profiler-image-view");
+    this._imageContainer = this.contentElement.createChild("div", "paint-profiler-image-container");
     this._imageElement = this._imageContainer.createChild("img");
     this._maskElement = this._imageContainer.createChild("div");
     this._imageElement.addEventListener("load", this._updateImagePosition.bind(this), false);
 
-    this._transformController = new WebInspector.TransformController(this.element, true);
+    this._transformController = new WebInspector.TransformController(this.contentElement, true);
     this._transformController.addEventListener(WebInspector.TransformController.Events.TransformChanged, this._updateImagePosition, this);
-}
+};
 
 WebInspector.TimelinePaintImageView.prototype = {
     onResize: function()
@@ -157,8 +165,8 @@ WebInspector.TimelinePaintImageView.prototype = {
     {
         var width = this._imageElement.naturalWidth;
         var height = this._imageElement.naturalHeight;
-        var clientWidth = this.element.clientWidth;
-        var clientHeight = this.element.clientHeight;
+        var clientWidth = this.contentElement.clientWidth;
+        var clientHeight = this.contentElement.clientHeight;
 
         var paddingFraction = 0.1;
         var paddingX = clientWidth * paddingFraction;

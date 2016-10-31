@@ -26,6 +26,9 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// For testing.
+WebInspector.panels = [];
+
 /**
  * @extends {WebInspector.VBox}
  * @constructor
@@ -35,13 +38,15 @@ WebInspector.Panel = function(name)
     WebInspector.VBox.call(this);
 
     this.element.classList.add("panel");
-    this.element.setAttribute("role", "tabpanel");
     this.element.setAttribute("aria-label", name);
     this.element.classList.add(name);
     this._panelName = name;
 
+    // For testing.
+    WebInspector.panels[name] = this;
+
     this._shortcuts = /** !Object.<number, function(Event=):boolean> */ ({});
-}
+};
 
 // Should by in sync with style declarations.
 WebInspector.Panel.counterRightMargin = 25;
@@ -50,10 +55,6 @@ WebInspector.Panel.prototype = {
     get name()
     {
         return this._panelName;
-    },
-
-    reset: function()
-    {
     },
 
     /**
@@ -118,7 +119,7 @@ WebInspector.Panel.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @extends {WebInspector.Panel}
@@ -141,7 +142,7 @@ WebInspector.PanelWithSidebar = function(name, defaultWidth)
     this._panelSplitWidget.setSidebarWidget(this._sidebarWidget);
 
     this._sidebarWidget.element.classList.add("panel-sidebar");
-}
+};
 
 WebInspector.PanelWithSidebar.prototype = {
     /**
@@ -169,69 +170,4 @@ WebInspector.PanelWithSidebar.prototype = {
     },
 
     __proto__: WebInspector.Panel.prototype
-}
-
-/**
- * @interface
- */
-WebInspector.PanelDescriptor = function()
-{
-}
-
-WebInspector.PanelDescriptor.prototype = {
-    /**
-     * @return {string}
-     */
-    name: function() {},
-
-    /**
-     * @return {string}
-     */
-    title: function() {},
-
-    /**
-     * @return {!Promise.<!WebInspector.Panel>}
-     */
-    panel: function() {}
-}
-
-/**
- * @constructor
- * @param {!Runtime.Extension} extension
- * @implements {WebInspector.PanelDescriptor}
- */
-WebInspector.ExtensionPanelDescriptor = function(extension)
-{
-    this._name = extension.descriptor()["name"];
-    this._title = WebInspector.UIString(extension.descriptor()["title"]);
-    this._extension = extension;
-}
-
-WebInspector.ExtensionPanelDescriptor.prototype = {
-    /**
-     * @override
-     * @return {string}
-     */
-    name: function()
-    {
-        return this._name;
-    },
-
-    /**
-     * @override
-     * @return {string}
-     */
-    title: function()
-    {
-        return this._title;
-    },
-
-    /**
-     * @override
-     * @return {!Promise.<!WebInspector.Panel>}
-     */
-    panel: function()
-    {
-        return  /** @type {!Promise<!WebInspector.Panel>} */(this._extension.instance());
-    }
-}
+};

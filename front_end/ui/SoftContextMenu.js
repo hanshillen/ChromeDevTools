@@ -34,7 +34,7 @@ WebInspector.SoftContextMenu = function(items, itemSelectedCallback, parentMenu)
     this._items = items;
     this._itemSelectedCallback = itemSelectedCallback;
     this._parentMenu = parentMenu;
-}
+};
 
 WebInspector.SoftContextMenu.prototype = {
     /**
@@ -61,7 +61,7 @@ WebInspector.SoftContextMenu.prototype = {
         this.element.style.left = (this._parentMenu ? x - subMenuOverlap : x) + "px";
 
         this._contextMenuElement.tabIndex = 0;
-        this._contextMenuElement.addEventListener("mouseup", consumeEvent, false);
+        this._contextMenuElement.addEventListener("mouseup", (e) => e.consume(), false);
         this._contextMenuElement.addEventListener("keydown", this._menuKeyDown.bind(this), false);
 
         for (var i = 0; i < this._items.length; ++i)
@@ -397,4 +397,4 @@ WebInspector.SoftContextMenu.prototype = {
         if (this._parentMenu)
             delete this._parentMenu._subMenu;
     }
-}
+};

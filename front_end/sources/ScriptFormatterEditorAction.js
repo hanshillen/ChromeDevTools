@@ -12,7 +12,7 @@ WebInspector.FormatterScriptMapping = function(debuggerModel, editorAction)
 {
     this._debuggerModel = debuggerModel;
     this._editorAction = editorAction;
-}
+};
 
 WebInspector.FormatterScriptMapping.prototype = {
     /**
@@ -79,7 +79,7 @@ WebInspector.FormatterScriptMapping.prototype = {
     {
         return true;
     }
-}
+};
 
 /**
  * @constructor
@@ -94,7 +94,7 @@ WebInspector.FormatterScriptMapping.FormatData = function(projectId, path, mappi
     this.path = path;
     this.mapping = mapping;
     this.scripts = scripts;
-}
+};
 
 /**
  * @constructor
@@ -120,7 +120,7 @@ WebInspector.ScriptFormatterEditorAction = function()
     this._scriptMappingByTarget = new Map();
     this._workspace = WebInspector.workspace;
     WebInspector.targetManager.observeTargets(this);
-}
+};
 
 WebInspector.ScriptFormatterEditorAction.prototype = {
     /**
@@ -159,8 +159,7 @@ WebInspector.ScriptFormatterEditorAction.prototype = {
         this._updateButton(uiSourceCode);
 
         var path = uiSourceCode.project().id() + ":" + uiSourceCode.url();
-        var networkURL = WebInspector.networkMapping.networkURL(uiSourceCode);
-        if (this._isFormatableScript(uiSourceCode) && networkURL && this._pathsToFormatOnLoad.has(path) && !this._formattedPaths.get(path))
+        if (this._isFormatableScript(uiSourceCode) && this._pathsToFormatOnLoad.has(path) && !this._formattedPaths.get(path))
             this._formatUISourceCodeScript(uiSourceCode);
     },
 
@@ -213,6 +212,8 @@ WebInspector.ScriptFormatterEditorAction.prototype = {
     _isFormatableScript: function(uiSourceCode)
     {
         if (!uiSourceCode)
+            return false;
+        if (WebInspector.persistence.binding(uiSourceCode))
             return false;
         var supportedProjectTypes = [WebInspector.projectTypes.Network, WebInspector.projectTypes.Debugger, WebInspector.projectTypes.ContentScripts];
         if (supportedProjectTypes.indexOf(uiSourceCode.project().type()) === -1)
@@ -321,10 +322,8 @@ WebInspector.ScriptFormatterEditorAction.prototype = {
         if (uiSourceCode.contentType() === WebInspector.resourceTypes.Document) {
             var scripts = [];
             var debuggerModels = WebInspector.DebuggerModel.instances();
-            for (var i = 0; i < debuggerModels.length; ++i) {
-                var networkURL = WebInspector.networkMapping.networkURL(uiSourceCode);
-                scripts.pushAll(debuggerModels[i].scriptsForSourceURL(networkURL));
-            }
+            for (var i = 0; i < debuggerModels.length; ++i)
+                scripts.pushAll(debuggerModels[i].scriptsForSourceURL(uiSourceCode.url()));
             return scripts.filter(isInlineScript);
         }
         if (uiSourceCode.contentType().isScript()) {
@@ -392,4 +391,4 @@ WebInspector.ScriptFormatterEditorAction.prototype = {
             this._showIfNeeded(uiSourceCode, formattedUISourceCode, formatterMapping);
         }
     }
-}
+};

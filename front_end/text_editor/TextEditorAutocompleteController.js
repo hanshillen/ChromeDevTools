@@ -23,9 +23,9 @@ WebInspector.TextEditorAutocompleteController = function(textEditor, codeMirror,
     this._beforeChange = this._beforeChange.bind(this);
     this._mouseDown = this.clearAutocomplete.bind(this);
     this._codeMirror.on("changes", this._changes);
-
+    this._lastHintText = "";
     this._hintElement = createElementWithClass("span", "auto-complete-text");
-}
+};
 
 WebInspector.TextEditorAutocompleteController.HintBookmark = Symbol("hint");
 
@@ -172,8 +172,7 @@ WebInspector.TextEditorAutocompleteController.prototype = {
                 singleCharInput = true;
                 break;
             }
-            if (this._suggestBox
-                && changeObject.origin === "+delete"
+            if (changeObject.origin === "+delete"
                 && changeObject.removed.length === 1
                 && changeObject.removed[0].length === 1
                 && changeObject.to.line === cursor.line
@@ -182,13 +181,15 @@ WebInspector.TextEditorAutocompleteController.prototype = {
                 break;
             }
         }
-        if (singleCharInput && this._hintMarker)
-            this._hintElement.textContent = this._hintElement.textContent.substring(1);
-
-        if (singleCharDelete && this._hintMarker && this._lastPrefix) {
-            this._hintElement.textContent = this._lastPrefix.charAt(this._lastPrefix.length - 1) + this._hintElement.textContent;
-            this._lastPrefix = this._lastPrefix.substring(0, this._lastPrefix.length - 1);
+        if (this._prefixRange) {
+            if (singleCharInput)
+                this._prefixRange.endColumn++;
+            else if (singleCharDelete)
+                this._prefixRange.endColumn--;
+            if (singleCharDelete || singleCharInput)
+                this._setHint(this._lastHintText);
         }
+
         if (singleCharInput || singleCharDelete)
             setImmediate(this.autocomplete.bind(this));
         else
@@ -257,7 +258,7 @@ WebInspector.TextEditorAutocompleteController.prototype = {
                 return;
             }
             if (!this._suggestBox)
-                this._suggestBox = new WebInspector.SuggestBox(this, 6, this._config.captureEnter);
+                this._suggestBox = new WebInspector.SuggestBox(this, 20, this._config.captureEnter);
 
             var oldPrefixRange = this._prefixRange;
             this._prefixRange = prefixRange;
@@ -265,37 +266,52 @@ WebInspector.TextEditorAutocompleteController.prototype = {
                 this._updateAnchorBox();
             this._suggestBox.updateSuggestions(this._anchorBox, wordsWithPrefix, 0, !this._isCursorAtEndOfLine(), prefix);
             this._onSuggestionsShownForTest(wordsWithPrefix);
-            this._addHintMarker(wordsWithPrefix[0].title);
+            this._setHint(wordsWithPrefix[0].title);
         }
     },
 
     /**
      * @param {string} hint
      */
-    _addHintMarker: function(hint)
+    _setHint: function(hint)
     {
-        this._clearHintMarker();
-        if (!this._isCursorAtEndOfLine())
+        if (!this._isCursorAtEndOfLine()) {
+            this._clearHint();
             return;
+        }
         var prefix = this._textEditor.text(this._prefixRange);
-        this._lastPrefix = prefix;
-        this._hintElement.textContent = hint.substring(prefix.length).split("\n")[0];
+        var suffix = hint.substring(prefix.length).split("\n")[0];
+        this._hintElement.textContent = suffix;
         var cursor = this._codeMirror.getCursor("to");
-        this._hintMarker = this._textEditor.addBookmark(cursor.line, cursor.ch, this._hintElement, WebInspector.TextEditorAutocompleteController.HintBookmark, true);
+        if (this._hintMarker) {
+            var position = this._hintMarker.position();
+            if (!position || !position.equal(WebInspector.TextRange.createFromLocation(cursor.line, cursor.ch))) {
+                this._hintMarker.clear();
+                this._hintMarker = null;
+            }
+        }
+
+        if (!this._hintMarker)
+            this._hintMarker = this._textEditor.addBookmark(cursor.line, cursor.ch, this._hintElement, WebInspector.TextEditorAutocompleteController.HintBookmark, true);
+        else if (this._lastHintText !== hint)
+            this._hintMarker.refresh();
+        this._lastHintText = hint;
     },
 
-    _clearHintMarker: function()
+    _clearHint: function()
     {
-        if (!this._hintMarker)
-            return;
-        this._hintMarker.clear();
-        delete this._hintMarker;
+        this._lastHintText = "";
+        this._hintElement.textContent = "";
+        if (this._hintMarker)
+            this._hintMarker.refresh();
     },
 
     /**
      * @param {!WebInspector.SuggestBox.Suggestions} suggestions
      */
     _onSuggestionsShownForTest: function(suggestions) { },
+
+    _onSuggestionsHiddenForTest: function() { },
 
     clearAutocomplete: function()
     {
@@ -305,7 +321,8 @@ WebInspector.TextEditorAutocompleteController.prototype = {
         this._suggestBox = null;
         this._prefixRange = null;
         this._anchorBox = null;
-        this._clearHintMarker();
+        this._clearHint();
+        this._onSuggestionsHiddenForTest();
     },
 
     /**
@@ -359,7 +376,7 @@ WebInspector.TextEditorAutocompleteController.prototype = {
     applySuggestion: function(suggestion, isIntermediateSuggestion)
     {
         this._currentSuggestion = suggestion;
-        this._addHintMarker(suggestion);
+        this._setHint(suggestion);
     },
 
     /**
@@ -400,9 +417,18 @@ WebInspector.TextEditorAutocompleteController.prototype = {
         if (!this._suggestBox)
             return;
         var cursor = this._codeMirror.getCursor();
-        if (cursor.line !== this._prefixRange.startLine || cursor.ch > this._prefixRange.endColumn + 1 || cursor.ch <= this._prefixRange.startColumn)
+        var shouldCloseAutocomplete = !(cursor.line === this._prefixRange.startLine && this._prefixRange.startColumn <= cursor.ch && cursor.ch <= this._prefixRange.endColumn);
+        // Try not to hide autocomplete when user types in.
+        if (cursor.line === this._prefixRange.startLine && cursor.ch === this._prefixRange.endColumn + 1) {
+            var line = this._codeMirror.getLine(cursor.line);
+            shouldCloseAutocomplete = this._config.isWordChar ? !this._config.isWordChar(line.charAt(cursor.ch - 1)) : false;
+        }
+        if (shouldCloseAutocomplete)
             this.clearAutocomplete();
+        this._onCursorActivityHandledForTest();
     },
+
+    _onCursorActivityHandledForTest: function() { },
 
     _updateAnchorBox: function()
     {
@@ -411,4 +437,4 @@ WebInspector.TextEditorAutocompleteController.prototype = {
         var metrics = this._textEditor.cursorPositionToCoordinates(line, column);
         this._anchorBox = metrics ? new AnchorBox(metrics.x, metrics.y, 0, metrics.height) : null;
     },
-}
+};

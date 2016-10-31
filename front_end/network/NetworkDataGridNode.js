@@ -42,7 +42,7 @@ WebInspector.NetworkDataGridNode = function(parentView, request)
     this._staleGraph = true;
     this._isNavigationRequest = false;
     this.selectable = true;
-}
+};
 
 WebInspector.NetworkDataGridNode._hoveredRowSymbol = Symbol("hoveredRow");
 
@@ -68,6 +68,14 @@ WebInspector.NetworkDataGridNode.prototype = {
     request: function()
     {
         return this._request;
+    },
+
+    /**
+     * @return {boolean}
+     */
+    isNavigationRequest: function()
+    {
+        return this._isNavigationRequest;
     },
 
     markAsNavigationRequest: function()
@@ -103,6 +111,16 @@ WebInspector.NetworkDataGridNode.prototype = {
     },
 
     /**
+     * @param {!Element} element
+     * @param {string} text
+     */
+    _setTextAndTitle: function(element, text)
+    {
+        element.textContent = text;
+        element.title = text;
+    },
+
+    /**
      * @override
      * @param {string} columnIdentifier
      * @return {!Element}
@@ -113,21 +131,21 @@ WebInspector.NetworkDataGridNode.prototype = {
         switch (columnIdentifier) {
         case "name": this._renderNameCell(cell); break;
         case "timeline": this._createTimelineBar(cell); break;
-        case "method": cell.setTextAndTitle(this._request.requestMethod); break;
+        case "method": this._setTextAndTitle(cell, this._request.requestMethod); break;
         case "status": this._renderStatusCell(cell); break;
-        case "protocol": cell.setTextAndTitle(this._request.protocol); break;
-        case "scheme": cell.setTextAndTitle(this._request.scheme); break;
-        case "domain": cell.setTextAndTitle(this._request.domain); break;
-        case "remoteaddress": cell.setTextAndTitle(this._request.remoteAddress()); break;
-        case "cookies": cell.setTextAndTitle(this._arrayLength(this._request.requestCookies)); break;
-        case "setcookies": cell.setTextAndTitle(this._arrayLength(this._request.responseCookies)); break;
-        case "priority": cell.setTextAndTitle(WebInspector.uiLabelForPriority(this._request.initialPriority())); break;
-        case "connectionid": cell.setTextAndTitle(this._request.connectionId); break;
-        case "type": this._renderTypeCell(cell); break;
+        case "protocol": this._setTextAndTitle(cell, this._request.protocol); break;
+        case "scheme": this._setTextAndTitle(cell, this._request.scheme); break;
+        case "domain": this._setTextAndTitle(cell, this._request.domain); break;
+        case "remoteaddress": this._setTextAndTitle(cell, this._request.remoteAddress()); break;
+        case "cookies": this._setTextAndTitle(cell, this._arrayLength(this._request.requestCookies)); break;
+        case "setcookies": this._setTextAndTitle(cell, this._arrayLength(this._request.responseCookies)); break;
+        case "priority": this._setTextAndTitle(cell, WebInspector.uiLabelForPriority(this._request.initialPriority())); break;
+        case "connectionid": this._setTextAndTitle(cell, this._request.connectionId); break;
+        case "type": this._setTextAndTitle(cell, this.displayType()); break;
         case "initiator": this._renderInitiatorCell(cell); break;
         case "size": this._renderSizeCell(cell); break;
         case "time": this._renderTimeCell(cell); break;
-        default: cell.setTextAndTitle(this._request.responseHeaderValue(columnIdentifier) || ""); break;
+        default: this._setTextAndTitle(cell, this._request.responseHeaderValue(columnIdentifier) || ""); break;
         }
 
         return cell;
@@ -197,6 +215,8 @@ WebInspector.NetworkDataGridNode.prototype = {
      */
     _createTimelineBar: function(cell)
     {
+        if (Runtime.experiments.isEnabled("canvasNetworkTimeline"))
+            return;
         cell = cell.createChild("div");
         this._timelineCell = cell;
 
@@ -283,15 +303,15 @@ WebInspector.NetworkDataGridNode.prototype = {
                 this._appendSubtitle(cell, this._request.localizedFailDescription);
                 cell.title = failText + " " + this._request.localizedFailDescription;
             } else
-                cell.setTextAndTitle(failText);
+                this._setTextAndTitle(cell, failText);
         } else if (this._request.statusCode) {
             cell.createTextChild("" + this._request.statusCode);
             this._appendSubtitle(cell, this._request.statusText);
             cell.title = this._request.statusCode + " " + this._request.statusText;
         } else if (this._request.parsedURL.isDataURL()) {
-            cell.setTextAndTitle(WebInspector.UIString("(data)"));
+            this._setTextAndTitle(cell, WebInspector.UIString("(data)"));
         } else if (this._request.canceled) {
-            cell.setTextAndTitle(WebInspector.UIString("(canceled)"));
+            this._setTextAndTitle(cell, WebInspector.UIString("(canceled)"));
         } else if (this._request.wasBlocked()) {
             var reason = WebInspector.UIString("other");
             switch (this._request.blockedReason()) {
@@ -311,20 +331,12 @@ WebInspector.NetworkDataGridNode.prototype = {
                 reason = WebInspector.UIString("other");
                 break;
             }
-            cell.setTextAndTitle(WebInspector.UIString("(blocked:%s)", reason));
+            this._setTextAndTitle(cell, WebInspector.UIString("(blocked:%s)", reason));
         } else if (this._request.finished) {
-            cell.setTextAndTitle(WebInspector.UIString("Finished"));
+            this._setTextAndTitle(cell, WebInspector.UIString("Finished"));
         } else {
-            cell.setTextAndTitle(WebInspector.UIString("(pending)"));
+            this._setTextAndTitle(cell, WebInspector.UIString("(pending)"));
         }
-    },
-
-    /**
-     * @param {!Element} cell
-     */
-    _renderTypeCell: function(cell)
-    {
-        cell.setTextAndTitle(this.displayType());
     },
 
     /**
@@ -378,18 +390,18 @@ WebInspector.NetworkDataGridNode.prototype = {
     _renderSizeCell: function(cell)
     {
         if (this._request.fetchedViaServiceWorker) {
-            cell.setTextAndTitle(WebInspector.UIString("(from ServiceWorker)"));
+            this._setTextAndTitle(cell, WebInspector.UIString("(from ServiceWorker)"));
             cell.classList.add("network-dim-cell");
         } else if (this._request.cached()) {
             if (this._request.cachedInMemory())
-                cell.setTextAndTitle(WebInspector.UIString("(from memory cache)"));
+                this._setTextAndTitle(cell, WebInspector.UIString("(from memory cache)"));
             else
-                cell.setTextAndTitle(WebInspector.UIString("(from disk cache)"));
+                this._setTextAndTitle(cell, WebInspector.UIString("(from disk cache)"));
             cell.classList.add("network-dim-cell");
         } else {
             var resourceSize = Number.bytesToString(this._request.resourceSize);
             var transferSize = Number.bytesToString(this._request.transferSize);
-            cell.setTextAndTitle(transferSize);
+            this._setTextAndTitle(cell, transferSize);
             this._appendSubtitle(cell, resourceSize);
         }
     },
@@ -400,11 +412,11 @@ WebInspector.NetworkDataGridNode.prototype = {
     _renderTimeCell: function(cell)
     {
         if (this._request.duration > 0) {
-            cell.setTextAndTitle(Number.secondsToString(this._request.duration));
+            this._setTextAndTitle(cell, Number.secondsToString(this._request.duration));
             this._appendSubtitle(cell, Number.secondsToString(this._request.latency));
         } else {
             cell.classList.add("network-dim-cell");
-            cell.setTextAndTitle(WebInspector.UIString("Pending"));
+            this._setTextAndTitle(cell, WebInspector.UIString("Pending"));
         }
     },
 
@@ -561,7 +573,7 @@ WebInspector.NetworkDataGridNode.prototype = {
     },
 
     __proto__: WebInspector.SortableDataGridNode.prototype
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -577,7 +589,7 @@ WebInspector.NetworkDataGridNode.NameComparator = function(a, b)
     if (bFileName > aFileName)
         return -1;
     return a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -593,7 +605,7 @@ WebInspector.NetworkDataGridNode.RemoteAddressComparator = function(a, b)
     if (bRemoteAddress > aRemoteAddress)
         return -1;
     return a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -607,7 +619,7 @@ WebInspector.NetworkDataGridNode.SizeComparator = function(a, b)
     if (a._request.cached() && !b._request.cached())
         return -1;
     return (a._request.transferSize - b._request.transferSize) || a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -624,7 +636,7 @@ WebInspector.NetworkDataGridNode.TypeComparator = function(a, b)
     if (bSimpleType > aSimpleType)
         return -1;
     return a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -662,7 +674,7 @@ WebInspector.NetworkDataGridNode.InitiatorComparator = function(a, b)
         return 1;
 
     return a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -674,7 +686,7 @@ WebInspector.NetworkDataGridNode.RequestCookiesCountComparator = function(a, b)
     var aScore = a._request.requestCookies ? a._request.requestCookies.length : 0;
     var bScore = b._request.requestCookies ? b._request.requestCookies.length : 0;
     return (aScore - bScore) || a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -686,7 +698,7 @@ WebInspector.NetworkDataGridNode.ResponseCookiesCountComparator = function(a, b)
     var aScore = a._request.responseCookies ? a._request.responseCookies.length : 0;
     var bScore = b._request.responseCookies ? b._request.responseCookies.length : 0;
     return (aScore - bScore) || a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {!WebInspector.NetworkDataGridNode} a
@@ -709,7 +721,7 @@ WebInspector.NetworkDataGridNode.InitialPriorityComparator = function(a, b)
     var bScore = priorityMap.get(b._request.initialPriority()) || 0;
 
     return aScore - bScore || a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {string} propertyName
@@ -724,7 +736,7 @@ WebInspector.NetworkDataGridNode.RequestPropertyComparator = function(propertyNa
     if (aValue === bValue)
         return a._request.indentityCompare(b._request);
     return aValue > bValue ? 1 : -1;
-}
+};
 
 /**
  * @param {string} propertyName
@@ -737,7 +749,7 @@ WebInspector.NetworkDataGridNode.ResponseHeaderStringComparator = function(prope
     var aValue = String(a._request.responseHeaderValue(propertyName) || "");
     var bValue = String(b._request.responseHeaderValue(propertyName) || "");
     return aValue.localeCompare(bValue) || a._request.indentityCompare(b._request);
-}
+};
 
 /**
  * @param {string} propertyName
@@ -752,7 +764,7 @@ WebInspector.NetworkDataGridNode.ResponseHeaderNumberComparator = function(prope
     if (aValue === bValue)
         return a._request.indentityCompare(b._request);
     return aValue > bValue ? 1 : -1;
-}
+};
 
 /**
  * @param {string} propertyName
@@ -769,4 +781,4 @@ WebInspector.NetworkDataGridNode.ResponseHeaderDateComparator = function(propert
     if (aValue === bValue)
         return a._request.indentityCompare(b._request);
     return aValue > bValue ? 1 : -1;
-}
+};

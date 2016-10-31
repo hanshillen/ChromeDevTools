@@ -8,7 +8,7 @@
  */
 WebInspector.HistoryInput = function()
 {
-}
+};
 
 /**
  * @return {!WebInspector.HistoryInput}
@@ -19,7 +19,7 @@ WebInspector.HistoryInput.create = function()
         WebInspector.HistoryInput._constructor = registerCustomElement("input", "history-input", WebInspector.HistoryInput.prototype);
 
     return /** @type {!WebInspector.HistoryInput} */(new WebInspector.HistoryInput._constructor());
-}
+};
 
 WebInspector.HistoryInput.prototype = {
     createdCallback: function()
@@ -47,12 +47,12 @@ WebInspector.HistoryInput.prototype = {
         if (event.keyCode === WebInspector.KeyboardShortcut.Keys.Up.code) {
             this._historyPosition = Math.max(this._historyPosition - 1, 0);
             this.value = this._history[this._historyPosition];
-            this.dispatchEvent(createEvent("input", true, true));
+            this.dispatchEvent(new Event("input", {"bubbles": true, "cancelable": true}));
             event.consume(true);
         } else if (event.keyCode === WebInspector.KeyboardShortcut.Keys.Down.code) {
             this._historyPosition = Math.min(this._historyPosition + 1, this._history.length - 1);
             this.value = this._history[this._historyPosition];
-            this.dispatchEvent(createEvent("input", true, true));
+            this.dispatchEvent(new Event("input", {"bubbles": true, "cancelable": true}));
             event.consume(true);
         } else if (event.keyCode === WebInspector.KeyboardShortcut.Keys.Enter.code) {
             this._saveToHistory();
@@ -69,5 +69,5 @@ WebInspector.HistoryInput.prototype = {
     },
 
     __proto__: HTMLInputElement.prototype
-}
+};
 

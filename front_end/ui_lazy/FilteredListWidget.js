@@ -7,7 +7,7 @@
 /**
  * @constructor
  * @extends {WebInspector.VBox}
- * @implements {WebInspector.ViewportControl.Provider}
+ * @implements {WebInspector.StaticViewportControl.Provider}
  * @param {!WebInspector.FilteredListWidget.Delegate} delegate
  */
 WebInspector.FilteredListWidget = function(delegate)
@@ -25,7 +25,8 @@ WebInspector.FilteredListWidget = function(delegate)
     this._promptElement = this.contentElement.createChild("div", "filtered-list-widget-input");
     this._promptElement.setAttribute("spellcheck", "false");
     this._promptElement.setAttribute("contenteditable", "plaintext-only");
-    this._prompt = new WebInspector.TextPrompt(this._autocomplete.bind(this));
+    this._prompt = new WebInspector.TextPrompt();
+    this._prompt.initialize(this._autocomplete.bind(this));
     this._prompt.renderAsBlock();
     this._prompt.addEventListener(WebInspector.TextPrompt.Events.ItemAccepted, this._onAutocompleted, this);
     var promptProxy = this._prompt.attach(this._promptElement);
@@ -33,7 +34,7 @@ WebInspector.FilteredListWidget = function(delegate)
     promptProxy.classList.add("filtered-list-widget-prompt-element");
 
     this._filteredItems = [];
-    this._viewportControl = new WebInspector.ViewportControl(this);
+    this._viewportControl = new WebInspector.StaticViewportControl(this);
     this._itemElementsContainer = this._viewportControl.element;
     this._itemElementsContainer.classList.add("container");
     this._itemElementsContainer.addEventListener("click", this._onClick.bind(this), false);
@@ -47,7 +48,10 @@ WebInspector.FilteredListWidget = function(delegate)
     this._updateShowMatchingItems();
     this._viewportControl.refresh();
     this._prompt.autoCompleteSoon(true);
-}
+
+    /** @typedef {!Array.<!Element>} */
+    this._elements = [];
+};
 
 /**
  * @param {string} query
@@ -66,7 +70,7 @@ WebInspector.FilteredListWidget.filterRegex = function(query)
         regexString += c;
     }
     return new RegExp(regexString, "i");
-}
+};
 
 WebInspector.FilteredListWidget.prototype = {
     showAsDialog: function()
@@ -83,7 +87,7 @@ WebInspector.FilteredListWidget.prototype = {
      */
     _value: function()
     {
-        return this._prompt.userEnteredText().trim();
+        return this._prompt.text().trim();
     },
 
     willHide: function()
@@ -249,7 +253,8 @@ WebInspector.FilteredListWidget.prototype = {
                     break;
                 }
             }
-            this._viewportControl.invalidate();
+            this._elements = [];
+            this._viewportControl.refresh();
             if (!query)
                 this._selectedIndexInFiltered = 0;
             this._updateSelection(this._selectedIndexInFiltered, false);
@@ -343,7 +348,7 @@ WebInspector.FilteredListWidget.prototype = {
             this._selectedElement.classList.remove("selected");
         this._viewportControl.scrollItemIntoView(index, makeLast);
         this._selectedIndexInFiltered = index;
-        this._selectedElement = this._viewportControl.renderedElementAt(index);
+        this._selectedElement = this._elements[index];
         if (this._selectedElement)
             this._selectedElement.classList.add("selected");
     },
@@ -374,12 +379,12 @@ WebInspector.FilteredListWidget.prototype = {
      * @param {number} index
      * @return {number}
      */
-    fastHeight: function(index)
+    fastItemHeight: function(index)
     {
         if (!this._rowHeight) {
             var delegateIndex = this._filteredItems[index];
             var element = this._createItemElement(delegateIndex);
-            this._rowHeight = WebInspector.measurePreferredSize(element, this._viewportControl.contentElement()).height;
+            this._rowHeight = WebInspector.measurePreferredSize(element, this._itemElementsContainer).height;
         }
         return this._rowHeight;
     },
@@ -387,26 +392,17 @@ WebInspector.FilteredListWidget.prototype = {
     /**
      * @override
      * @param {number} index
-     * @return {!WebInspector.ViewportElement}
+     * @return {!Element}
      */
     itemElement: function(index)
     {
-        var delegateIndex = this._filteredItems[index];
-        var element = this._createItemElement(delegateIndex);
-        return new WebInspector.StaticViewportElement(element);
-    },
-
-    /**
-     * @override
-     * @return {number}
-     */
-    minimumRowHeight: function()
-    {
-        return this.fastHeight(0);
+        if (!this._elements[index])
+            this._elements[index] = this._createItemElement(this._filteredItems[index]);
+        return this._elements[index];
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -415,7 +411,7 @@ WebInspector.FilteredListWidget.prototype = {
 WebInspector.FilteredListWidget.Delegate = function(promptHistory)
 {
     this._promptHistory = promptHistory;
-}
+};
 
 WebInspector.FilteredListWidget.Delegate.prototype = {
     /**
@@ -588,4 +584,4 @@ WebInspector.FilteredListWidget.Delegate.prototype = {
     dispose: function()
     {
     }
-}
+};

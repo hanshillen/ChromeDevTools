@@ -7,7 +7,7 @@
  */
 WebInspector.InplaceEditor = function()
 {
-}
+};
 
 /**
  * @typedef {{cancel: function(), commit: function(), setWidth: function(number)}}
@@ -24,7 +24,7 @@ WebInspector.InplaceEditor.startEditing = function(element, config)
     if (!WebInspector.InplaceEditor._defaultInstance)
         WebInspector.InplaceEditor._defaultInstance = new WebInspector.InplaceEditor();
     return WebInspector.InplaceEditor._defaultInstance.startEditing(element, config);
-}
+};
 
 /**
  * @param {!Element} element
@@ -46,7 +46,7 @@ WebInspector.InplaceEditor.startMultilineEditing = function(element, config)
             return Promise.reject(new Error("Editing is already in progress"));
         return controller;
     }
-}
+};
 
 WebInspector.InplaceEditor.prototype = {
     /**
@@ -68,7 +68,7 @@ WebInspector.InplaceEditor.prototype = {
         var oldTabIndex = element.getAttribute("tabIndex");
         if (typeof oldTabIndex !== "number" || oldTabIndex < 0)
             element.tabIndex = 0;
-        WebInspector.setCurrentFocusElement(element);
+        this._focusRestorer = new WebInspector.ElementFocusRestorer(element);
         editingContext.oldTabIndex = oldTabIndex;
     },
 
@@ -149,7 +149,8 @@ WebInspector.InplaceEditor.prototype = {
             if (pasteCallback)
                 element.removeEventListener("paste", pasteEventListener, true);
 
-            WebInspector.restoreFocusFromElement(element);
+            if (self._focusRestorer)
+                self._focusRestorer.restore();
             self.closeEditor(editingContext);
         }
 
@@ -235,7 +236,7 @@ WebInspector.InplaceEditor.prototype = {
         this.augmentEditingHandle(editingContext, handle);
         return handle;
     }
-}
+};
 
 /**
  * @constructor
@@ -266,7 +267,7 @@ WebInspector.InplaceEditor.Config = function(commitHandler, cancelHandler, conte
      * @type {function(!Event):string|undefined}
      */
     this.postKeydownFinishHandler;
-}
+};
 
 WebInspector.InplaceEditor.Config.prototype = {
     setPasteHandler: function(pasteHandler)
@@ -298,4 +299,4 @@ WebInspector.InplaceEditor.Config.prototype = {
     {
         this.postKeydownFinishHandler = postKeydownFinishHandler;
     }
-}
+};

@@ -54,7 +54,7 @@ TreeOutline.Events = {
     ElementExpanded: Symbol("ElementExpanded"),
     ElementCollapsed: Symbol("ElementCollapsed"),
     ElementSelected: Symbol("ElementSelected")
-}
+};
 
 TreeOutline.prototype = {
     _createRootElement: function()
@@ -309,7 +309,7 @@ TreeOutline.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -319,6 +319,7 @@ function TreeOutlineInShadow()
 {
     TreeOutline.call(this);
     this.contentElement.classList.add("tree-outline");
+    WebInspector.keyboardManager.registerNode(this.contentElement, null, ['treeOutline']);
 
     // Redefine element to the external one.
     this.element = createElement("div");
@@ -348,7 +349,7 @@ TreeOutlineInShadow.prototype = {
     },
 
     __proto__: TreeOutline.prototype
-}
+};
 
 /**
  * @constructor
@@ -369,7 +370,6 @@ function TreeElement(title, expandable)
     if (title)
         this.title = title;
     this._listItemNode.addEventListener("mousedown", this._handleMouseDown.bind(this), false);
-    this._listItemNode.addEventListener("selectstart", this._treeElementSelectStart.bind(this), false);
     this._listItemNode.addEventListener("click", this._treeElementToggled.bind(this), false);
     this._listItemNode.addEventListener("dblclick", this._handleDoubleClick.bind(this), false);
 
@@ -595,7 +595,7 @@ TreeElement.prototype = {
 
         for (var i = 0; this._children && i < this._children.length; ++i) {
             var child = this._children[i];
-            child.previousSibling = null
+            child.previousSibling = null;
             child.nextSibling = null;
             child.parent = null;
 
@@ -782,25 +782,10 @@ TreeElement.prototype = {
     /**
      * @param {!Event} event
      */
-    _treeElementSelectStart: function(event)
-    {
-        event.currentTarget._selectionStarted = true;
-    },
-
-    /**
-     * @param {!Event} event
-     */
     _treeElementToggled: function(event)
     {
         var element = event.currentTarget;
-        if (element._selectionStarted) {
-            delete element._selectionStarted;
-            var selection = element.getComponentSelection();
-            if (selection && !selection.isCollapsed && element.isSelfOrAncestor(selection.anchorNode) && element.isSelfOrAncestor(selection.focusNode))
-                return;
-        }
-
-        if (element.treeElement !== this)
+        if (element.treeElement !== this || element.hasSelection())
             return;
 
         var toggleOnClick = this.toggleOnClick && !this.selectable;
@@ -833,8 +818,6 @@ TreeElement.prototype = {
         var element = event.currentTarget;
         if (!element)
             return;
-        delete element._selectionStarted;
-
         if (!this.selectable)
             return;
         if (element.treeElement !== this)
@@ -898,6 +881,7 @@ TreeElement.prototype = {
         // Set this before onpopulate. Since onpopulate can add elements, this makes
         // sure the expanded flag is true before calling those functions. This prevents the possibility
         // of an infinite loop if onpopulate were to call expand.
+
         this.expanded = true;
 
         this._populateIfNeeded();
@@ -1177,4 +1161,4 @@ TreeElement.prototype = {
         var left = this._listItemNode.totalOffsetLeft() + computedLeftPadding;
         return event.pageX >= left && event.pageX <= left + TreeElement._ArrowToggleWidth && this._expandable;
     }
-}
+};

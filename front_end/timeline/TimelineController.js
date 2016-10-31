@@ -17,7 +17,7 @@ WebInspector.TimelineController = function(target, delegate, tracingModel)
     this._tracingModel = tracingModel;
     this._targets = [];
     WebInspector.targetManager.observeTargets(this);
-}
+};
 
 WebInspector.TimelineController.prototype = {
     /**
@@ -29,6 +29,8 @@ WebInspector.TimelineController.prototype = {
      */
     startRecording: function(captureCauses, enableJSSampling, captureMemory, capturePictures, captureFilmStrip)
     {
+        this._extensionTraceProviders = WebInspector.extensionServer.traceProviders().slice();
+
         function disabledByDefault(category)
         {
             return "disabled-by-default-" + category;
@@ -43,16 +45,18 @@ WebInspector.TimelineController.prototype = {
             WebInspector.TimelineModel.Category.Console,
             WebInspector.TimelineModel.Category.UserTiming
         ];
-        categoriesArray.push(WebInspector.TimelineModel.Category.LatencyInfo)
+        categoriesArray.push(WebInspector.TimelineModel.Category.LatencyInfo);
 
         if (Runtime.experiments.isEnabled("timelineFlowEvents")) {
             categoriesArray.push(disabledByDefault("toplevel.flow"),
                                  disabledByDefault("ipc.flow"));
         }
+        if (Runtime.experiments.isEnabled("timelineV8RuntimeCallStats") && enableJSSampling)
+            categoriesArray.push(disabledByDefault("v8.runtime_stats"));
         if (Runtime.experiments.isEnabled("timelineTracingJSProfile") && enableJSSampling) {
-            categoriesArray.push(disabledByDefault("v8.cpu_profile"));
+            categoriesArray.push(disabledByDefault("v8.cpu_profiler"));
             if (WebInspector.moduleSetting("highResolutionCpuProfiling").get())
-                categoriesArray.push(disabledByDefault("v8.cpu_profile.hires"));
+                categoriesArray.push(disabledByDefault("v8.cpu_profiler.hires"));
         }
         if (captureCauses || enableJSSampling)
             categoriesArray.push(disabledByDefault("devtools.timeline.stack"));
@@ -65,6 +69,9 @@ WebInspector.TimelineController.prototype = {
         }
         if (captureFilmStrip)
             categoriesArray.push(disabledByDefault("devtools.screenshot"));
+
+        for (var traceProvider of this._extensionTraceProviders)
+            traceProvider.start();
 
         var categories = categoriesArray.join(",");
         this._startRecordingWithCategories(categories, enableJSSampling);
@@ -80,6 +87,9 @@ WebInspector.TimelineController.prototype = {
         Promise.all(tracingStoppedPromises).then(() => this._allSourcesFinished());
 
         this._delegate.loadingStarted();
+
+        for (var traceProvider of this._extensionTraceProviders)
+            traceProvider.stop();
     },
 
     /**
@@ -259,7 +269,7 @@ WebInspector.TimelineController.prototype = {
         var workerMetaEvents = metadataEvents.filter(event => event.name === metadataEventTypes.TracingSessionIdForWorker);
         for (var metaEvent of workerMetaEvents) {
             var workerId = metaEvent.args["data"]["workerId"];
-            var workerTarget = this._target.workerManager ? this._target.workerManager.targetByWorkerId(workerId) : null;
+            var workerTarget = this._target.subTargetsManager ? this._target.subTargetsManager.targetForId(workerId) : null;
             if (!workerTarget)
                 continue;
             var cpuProfile = this._cpuProfiles.get(workerTarget.id());
@@ -285,4 +295,4 @@ WebInspector.TimelineController.prototype = {
     {
         this._delegate.loadingProgress(progress);
     }
-}
+};

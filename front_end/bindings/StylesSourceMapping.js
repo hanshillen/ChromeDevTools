@@ -55,7 +55,7 @@ WebInspector.StylesSourceMapping = function(cssModel, workspace, networkMapping)
         WebInspector.ResourceTreeModel.fromTarget(cssModel.target()).addEventListener(
             WebInspector.ResourceTreeModel.Events.MainFrameNavigated, this._unbindAllUISourceCodes, this)
     ];
-}
+};
 
 WebInspector.StylesSourceMapping.ChangeUpdateTimeoutMs = 200;
 
@@ -163,10 +163,9 @@ WebInspector.StylesSourceMapping.prototype = {
     _uiSourceCodeAddedToWorkspace: function(event)
     {
         var uiSourceCode = /** @type {!WebInspector.UISourceCode} */ (event.data);
-        var networkURL = this._networkMapping.networkURL(uiSourceCode);
-        if (!networkURL || !this._urlToHeadersByFrameId.has(networkURL))
+        if (!this._urlToHeadersByFrameId.has(uiSourceCode.url()))
             return;
-        this._bindUISourceCode(uiSourceCode, this._urlToHeadersByFrameId.get(networkURL).valuesArray()[0].valuesArray()[0]);
+        this._bindUISourceCode(uiSourceCode, this._urlToHeadersByFrameId.get(uiSourceCode.url()).valuesArray()[0].valuesArray()[0]);
     },
 
     /**
@@ -209,10 +208,9 @@ WebInspector.StylesSourceMapping.prototype = {
      */
     _setStyleContent: function(uiSourceCode, content, majorChange)
     {
-        var networkURL = this._networkMapping.networkURL(uiSourceCode);
-        var styleSheetIds = this._cssModel.styleSheetIdsForURL(networkURL);
+        var styleSheetIds = this._cssModel.styleSheetIdsForURL(uiSourceCode.url());
         if (!styleSheetIds.length)
-            return Promise.resolve(/** @type {?string} */("No stylesheet found: " + networkURL));
+            return Promise.resolve(/** @type {?string} */("No stylesheet found: " + uiSourceCode.url()));
 
         this._isSettingContent = true;
 
@@ -294,7 +292,7 @@ WebInspector.StylesSourceMapping.prototype = {
     {
         WebInspector.EventTarget.removeEventListeners(this._eventListeners);
     }
-}
+};
 
 /**
  * @constructor
@@ -309,10 +307,9 @@ WebInspector.StyleFile = function(uiSourceCode, mapping)
         this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.WorkingCopyChanged, this._workingCopyChanged, this),
         this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.WorkingCopyCommitted, this._workingCopyCommitted, this)
     ];
-    this._uiSourceCode.forceLoadOnCheckContent();
     this._commitThrottler = new WebInspector.Throttler(WebInspector.StyleFile.updateTimeout);
     this._terminated = false;
-}
+};
 
 WebInspector.StyleFile.updateTimeout = 200;
 
@@ -345,7 +342,7 @@ WebInspector.StyleFile.prototype = {
         if (this._terminated)
             return;
         var promise = this._mapping._setStyleContent(this._uiSourceCode, this._uiSourceCode.workingCopy(), this._isMajorChangePending)
-            .then(this._styleContentSet.bind(this))
+            .then(this._styleContentSet.bind(this));
         this._isMajorChangePending = false;
         return promise;
     },
@@ -376,4 +373,4 @@ WebInspector.StyleFile.prototype = {
         this._terminated = true;
         WebInspector.EventTarget.removeEventListeners(this._eventListeners);
     }
-}
+};

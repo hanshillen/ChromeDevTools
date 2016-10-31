@@ -14,25 +14,28 @@ WebInspector.FilteredUISourceCodeListDelegate = function(defaultScores, history)
 {
     WebInspector.FilteredListWidget.Delegate.call(this, history || []);
 
-    this._populate();
     this._defaultScores = defaultScores;
     this._scorer = new WebInspector.FilePathScoreFunction("");
     WebInspector.workspace.addEventListener(WebInspector.Workspace.Events.UISourceCodeAdded, this._uiSourceCodeAdded, this);
     WebInspector.workspace.addEventListener(WebInspector.Workspace.Events.ProjectRemoved, this._projectRemoved, this);
-}
+};
 
 WebInspector.FilteredUISourceCodeListDelegate.prototype = {
+    /**
+     * @param {!WebInspector.Event} event
+     */
     _projectRemoved: function(event)
     {
         var project = /** @type {!WebInspector.Project} */ (event.data);
-        this._populate(project);
+        this.populate(project);
         this.refresh();
     },
 
     /**
+     * @protected
      * @param {!WebInspector.Project=} skipProject
      */
-    _populate: function(skipProject)
+    populate: function(skipProject)
     {
         /** @type {!Array.<!WebInspector.UISourceCode>} */
         this._uiSourceCodes = [];
@@ -40,8 +43,19 @@ WebInspector.FilteredUISourceCodeListDelegate.prototype = {
         for (var i = 0; i < projects.length; ++i) {
             if (skipProject && projects[i] === skipProject)
                 continue;
-            this._uiSourceCodes = this._uiSourceCodes.concat(projects[i].uiSourceCodes());
+            var uiSourceCodes = projects[i].uiSourceCodes().filter(this._filterUISourceCode.bind(this));
+            this._uiSourceCodes = this._uiSourceCodes.concat(uiSourceCodes);
         }
+    },
+
+    /**
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     * @return {boolean}
+     */
+    _filterUISourceCode: function(uiSourceCode)
+    {
+        var binding = WebInspector.persistence.binding(uiSourceCode);
+        return !binding || binding.network === uiSourceCode;
     },
 
     /**
@@ -196,7 +210,7 @@ WebInspector.FilteredUISourceCodeListDelegate.prototype = {
     _uiSourceCodeAdded: function(event)
     {
         var uiSourceCode = /** @type {!WebInspector.UISourceCode} */ (event.data);
-        if (!this.filterProject(uiSourceCode.project()))
+        if (!this._filterUISourceCode(uiSourceCode) || !this.filterProject(uiSourceCode.project()))
             return;
         this._uiSourceCodes.push(uiSourceCode);
         this.refresh();
@@ -209,4 +223,4 @@ WebInspector.FilteredUISourceCodeListDelegate.prototype = {
     },
 
     __proto__: WebInspector.FilteredListWidget.Delegate.prototype
-}
+};

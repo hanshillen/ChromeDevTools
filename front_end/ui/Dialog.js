@@ -47,7 +47,7 @@ WebInspector.Dialog = function()
     this._dimmed = false;
     /** @type {!Map<!HTMLElement, number>} */
     this._tabIndexMap = new Map();
-}
+};
 
 /**
  * @return {boolean}
@@ -55,7 +55,7 @@ WebInspector.Dialog = function()
 WebInspector.Dialog.hasInstance = function()
 {
     return !!WebInspector.Dialog._instance;
-}
+};
 
 WebInspector.Dialog.prototype = {
     /**
@@ -74,14 +74,10 @@ WebInspector.Dialog.prototype = {
         this._glassPane.element.addEventListener("click", this._onGlassPaneClick.bind(this), false);
         this.element.ownerDocument.body.addEventListener("keydown", this._keyDownBound, false);
 
-        // When a dialog closes, focus should be restored to the previous focused element when
-        // possible, otherwise the default inspector view element.
-        WebInspector.Dialog._previousFocusedElement = WebInspector.currentFocusElement();
-
         WebInspector.Widget.prototype.show.call(this, this._glassPane.element);
 
         this._position();
-        this.focus();
+        this._focusRestorer = new WebInspector.WidgetFocusRestorer(this);
     },
 
     /**
@@ -89,15 +85,13 @@ WebInspector.Dialog.prototype = {
      */
     detach: function()
     {
+        this._focusRestorer.restore();
+
         this.element.ownerDocument.body.removeEventListener("keydown", this._keyDownBound, false);
         WebInspector.Widget.prototype.detach.call(this);
 
         this._glassPane.dispose();
         delete this._glassPane;
-
-        if (WebInspector.Dialog._previousFocusedElement)
-            WebInspector.Dialog._previousFocusedElement.focus();
-        delete WebInspector.Dialog._previousFocusedElement;
 
         this._restoreTabIndexOnElements();
 

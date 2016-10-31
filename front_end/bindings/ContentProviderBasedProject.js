@@ -43,7 +43,9 @@ WebInspector.ContentProviderBasedProject = function(workspace, id, type, display
     /** @type {!Object.<string, !WebInspector.ContentProvider>} */
     this._contentProviders = {};
     workspace.addProject(this);
-}
+};
+
+WebInspector.ContentProviderBasedProject._metadata = Symbol("ContentProviderBasedProject.Metadata");
 
 WebInspector.ContentProviderBasedProject.prototype = {
     /**
@@ -55,6 +57,16 @@ WebInspector.ContentProviderBasedProject.prototype = {
     {
         var contentProvider = this._contentProviders[uiSourceCode.url()];
         contentProvider.requestContent().then(callback);
+    },
+
+    /**
+     * @override
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     * @return {!Promise<?WebInspector.UISourceCodeMetadata>}
+     */
+    requestMetadata: function(uiSourceCode)
+    {
+        return Promise.resolve(uiSourceCode[WebInspector.ContentProviderBasedProject._metadata]);
     },
 
     /**
@@ -114,17 +126,6 @@ WebInspector.ContentProviderBasedProject.prototype = {
             }
             callback(success, newName);
         }
-    },
-
-    /**
-     * @override
-     * @param {string} path
-     * @param {function()=} callback
-     */
-    refresh: function(path, callback)
-    {
-        if (callback)
-            callback();
     },
 
     /**
@@ -276,10 +277,12 @@ WebInspector.ContentProviderBasedProject.prototype = {
     /**
      * @param {!WebInspector.UISourceCode} uiSourceCode
      * @param {!WebInspector.ContentProvider} contentProvider
+     * @param {?WebInspector.UISourceCodeMetadata} metadata
      */
-    addUISourceCodeWithProvider: function(uiSourceCode, contentProvider)
+    addUISourceCodeWithProvider: function(uiSourceCode, contentProvider, metadata)
     {
         this._contentProviders[uiSourceCode.url()] = contentProvider;
+        uiSourceCode[WebInspector.ContentProviderBasedProject._metadata] = metadata;
         this.addUISourceCode(uiSourceCode, true);
     },
 
@@ -291,7 +294,7 @@ WebInspector.ContentProviderBasedProject.prototype = {
     addContentProvider: function(url, contentProvider)
     {
         var uiSourceCode = this.createUISourceCode(url, contentProvider.contentType());
-        this.addUISourceCodeWithProvider(uiSourceCode, contentProvider);
+        this.addUISourceCodeWithProvider(uiSourceCode, contentProvider, null);
         return uiSourceCode;
     },
 
@@ -318,4 +321,4 @@ WebInspector.ContentProviderBasedProject.prototype = {
     },
 
     __proto__: WebInspector.ProjectStore.prototype
-}
+};

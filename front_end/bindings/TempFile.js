@@ -37,7 +37,7 @@ WebInspector.TempFile = function()
 {
     this._fileEntry = null;
     this._writer = null;
-}
+};
 
 /**
  * @param {string} dirPath
@@ -123,7 +123,7 @@ WebInspector.TempFile.create = function(dirPath, name)
         .then(getFileEntry)
         .then(createFileWriter)
         .then(truncateFile);
-}
+};
 
 WebInspector.TempFile.prototype = {
     /**
@@ -137,11 +137,11 @@ WebInspector.TempFile.prototype = {
         {
             WebInspector.console.error("Failed to write into a temp file: " + e.target.error.message);
             callback(-1);
-        }
+        };
         this._writer.onwriteend = function(e)
         {
             callback(e.target.length);
-        }
+        };
         this._writer.write(blob);
     },
 
@@ -224,7 +224,7 @@ WebInspector.TempFile.prototype = {
         if (this._fileEntry)
             this._fileEntry.remove(function() {});
     }
-}
+};
 
 /**
  * @constructor
@@ -243,7 +243,7 @@ WebInspector.DeferredTempFile = function(dirPath, name)
     this._pendingReads = [];
     WebInspector.TempFile.create(dirPath, name)
         .then(this._didCreateTempFile.bind(this), this._failedToCreateTempFile.bind(this));
-}
+};
 
 WebInspector.DeferredTempFile.prototype = {
     /**
@@ -385,59 +385,21 @@ WebInspector.DeferredTempFile.prototype = {
             this._tempFile.remove();
         this._tempFile = null;
     }
-}
-
-/**
- * @param {function(?)} fulfill
- * @param {function(*)} reject
- */
-WebInspector.TempFile._clearTempStorage = function(fulfill, reject)
-{
-    /**
-     * @param {!Event} event
-     */
-    function handleError(event)
-    {
-        WebInspector.console.error(WebInspector.UIString("Failed to clear temp storage: %s", event.data));
-        reject(event.data);
-    }
-
-    /**
-     * @param {!Event} event
-     */
-    function handleMessage(event)
-    {
-        if (event.data.type === "tempStorageCleared") {
-            if (event.data.error)
-                WebInspector.console.error(event.data.error);
-            else
-                fulfill(undefined);
-            return;
-        }
-        reject(event.data);
-    }
-
-    try {
-        var worker = new WebInspector.Worker("temp_storage_shared_worker", "TempStorageCleaner");
-        worker.onerror = handleError;
-        worker.onmessage = handleMessage;
-    } catch (e) {
-        if (e.name === "URLMismatchError")
-            console.log("Shared worker wasn't started due to url difference. " + e);
-        else
-            throw e;
-    }
-}
+};
 
 /**
  * @return {!Promise.<undefined>}
  */
 WebInspector.TempFile.ensureTempStorageCleared = function()
 {
-    if (!WebInspector.TempFile._storageCleanerPromise)
-        WebInspector.TempFile._storageCleanerPromise = new Promise(WebInspector.TempFile._clearTempStorage);
+    if (!WebInspector.TempFile._storageCleanerPromise) {
+        WebInspector.TempFile._storageCleanerPromise = WebInspector.serviceManager.createAppService("utility_shared_worker", "TempStorage", true).then(service => {
+            if (service)
+                return service.send("clear");
+        });
+    }
     return WebInspector.TempFile._storageCleanerPromise;
-}
+};
 
 /**
  * @constructor
@@ -448,7 +410,7 @@ WebInspector.TempFileBackingStorage = function(dirName)
 {
     this._dirName = dirName;
     this.reset();
-}
+};
 
 /**
  * @typedef {{
@@ -589,4 +551,4 @@ WebInspector.TempFileBackingStorage.prototype = {
     {
         this._file.copyToOutputStream(outputStream, delegate);
     }
-}
+};

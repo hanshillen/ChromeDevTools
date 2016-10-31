@@ -357,9 +357,8 @@ TestSuite.prototype.testNoScriptDuplicatesOnPanelSwitch = function()
     function checkNoDuplicates() {
         var uiSourceCodes = test.nonAnonymousUISourceCodes_();
         for (var i = 0; i < uiSourceCodes.length; i++) {
-            var scriptName = WebInspector.networkMapping.networkURL(uiSourceCodes[i]);
             for (var j = i + 1; j < uiSourceCodes.length; j++)
-                test.assertTrue(scriptName !== WebInspector.networkMapping.networkURL(uiSourceCodes[j]), "Found script duplicates: " + test.uiSourceCodesToString_(uiSourceCodes));
+                test.assertTrue(uiSourceCodes[i].url() !== uiSourceCodes[j].url(), "Found script duplicates: " + test.uiSourceCodesToString_(uiSourceCodes));
         }
     }
 
@@ -479,7 +478,7 @@ TestSuite.prototype.testNetworkRawHeadersText = function()
     {
         if (!resource.responseHeadersText)
             test.fail("Failure: resource does not have response headers text");
-        var index = resource.responseHeadersText.indexOf("Date:")
+        var index = resource.responseHeadersText.indexOf("Date:");
         test.assertEquals(112, resource.responseHeadersText.substring(index).length, "Incorrect response headers text length");
         test.releaseControl();
     }
@@ -609,7 +608,7 @@ TestSuite.prototype.testPauseInSharedWorkerInitialization1 = function()
     function callback()
     {
         var target = WebInspector.targetManager.targets(WebInspector.Target.Capability.JS)[0];
-        target._connection.deprecatedRunAfterPendingDispatches(this.releaseControl.bind(this));
+        InspectorBackendClass.deprecatedRunAfterPendingDispatches(this.releaseControl.bind(this));
     }
 };
 
@@ -640,7 +639,7 @@ TestSuite.prototype.enableTouchEmulation = function()
 TestSuite.prototype.enableAutoAttachToCreatedPages = function()
 {
     WebInspector.settingForTest("autoAttachToCreatedPages").set(true);
-}
+};
 
 TestSuite.prototype.waitForDebuggerPaused = function()
 {
@@ -650,13 +649,13 @@ TestSuite.prototype.waitForDebuggerPaused = function()
 
     this.takeControl();
     this._waitForScriptPause(this.releaseControl.bind(this));
-}
+};
 
 TestSuite.prototype.switchToPanel = function(panelName)
 {
     this.showPanel(panelName).then(this.releaseControl.bind(this));
     this.takeControl();
-}
+};
 
 // Regression test for crbug.com/370035.
 TestSuite.prototype.testDeviceMetricsOverrides = function()
@@ -825,7 +824,7 @@ TestSuite.prototype.testScreenshotRecording = function()
     {
         var readyImages = [];
         for (var frame of frames)
-            frame.imageDataPromise().then(onGotImageData)
+            frame.imageDataPromise().then(onGotImageData);
 
         function onGotImageData(data)
         {
@@ -873,7 +872,7 @@ TestSuite.prototype.testScreenshotRecording = function()
     }
 
     test.takeControl();
-}
+};
 
 TestSuite.prototype.testSettings = function()
 {
@@ -911,7 +910,7 @@ TestSuite.prototype.testSettings = function()
         test.assertEquals(2, globalSetting.get().n);
         test.releaseControl();
     }
-}
+};
 
 TestSuite.prototype.testWindowInitializedOnNavigateBack = function()
 {
@@ -939,7 +938,13 @@ TestSuite.prototype.testConsoleContextNames = function()
         test.assertEquals("Simple content script", values[1]);
         test.releaseControl();
     }
-}
+};
+
+TestSuite.prototype.testDevToolsSharedWorker = function()
+{
+    this.takeControl();
+    WebInspector.TempFile.ensureTempStorageCleared().then(() => this.releaseControl());
+};
 
 TestSuite.prototype.waitForTestResultsInConsole = function()
 {
@@ -981,8 +986,8 @@ TestSuite.prototype._overrideMethod = function(receiver, methodName, override)
         }
         override.apply(original, arguments);
         return value;
-    }
-}
+    };
+};
 
 TestSuite.prototype.startTimeline = function(callback)
 {
@@ -992,14 +997,14 @@ TestSuite.prototype.startTimeline = function(callback)
         test._overrideMethod(timeline, "recordingStarted", callback);
         timeline._toggleRecording();
     });
-}
+};
 
 TestSuite.prototype.stopTimeline = function(callback)
 {
     var timeline = WebInspector.panels.timeline;
     this._overrideMethod(timeline, "loadingComplete", callback);
     timeline._toggleRecording();
-}
+};
 
 TestSuite.prototype.invokePageFunctionAsync = function(functionName, opt_args, callback_is_always_last)
 {
@@ -1017,7 +1022,7 @@ TestSuite.prototype.invokePageFunctionAsync = function(functionName, opt_args, c
             callback();
         }
     }
-}
+};
 
 TestSuite.prototype.invokeAsyncWithTimeline_ = function(functionName, callback)
 {
@@ -1039,7 +1044,7 @@ TestSuite.prototype.invokeAsyncWithTimeline_ = function(functionName, callback)
 TestSuite.prototype.enableExperiment = function(name)
 {
     Runtime.experiments.enableForTest(name);
-}
+};
 
 TestSuite.prototype.checkInputEventsPresent = function()
 {
@@ -1059,7 +1064,7 @@ TestSuite.prototype.checkInputEventsPresent = function()
     }
     if (expectedEvents.size)
         throw "Some expected events are not found: " + Array.from(expectedEvents.keys()).join(",");
-}
+};
 
 /**
  * Serializes array of uiSourceCodes to string.
@@ -1070,7 +1075,7 @@ TestSuite.prototype.uiSourceCodesToString_ = function(uiSourceCodes)
 {
     var names = [];
     for (var i = 0; i < uiSourceCodes.length; i++)
-        names.push('"' + WebInspector.networkMapping.networkURL(uiSourceCodes[i]) + '"');
+        names.push('"' + uiSourceCodes[i].url() + '"');
     return names.join(",");
 };
 
@@ -1081,19 +1086,16 @@ TestSuite.prototype.uiSourceCodesToString_ = function(uiSourceCodes)
  */
 TestSuite.prototype.nonAnonymousUISourceCodes_ = function()
 {
-    function filterOutAnonymous(uiSourceCode)
-    {
-        return !!WebInspector.networkMapping.networkURL(uiSourceCode);
-    }
-
+    /**
+     * @param {!WebInspector.UISourceCode} uiSourceCode
+     */
     function filterOutService(uiSourceCode)
     {
         return !uiSourceCode.isFromServiceProject();
     }
 
     var uiSourceCodes = WebInspector.workspace.uiSourceCodes();
-    uiSourceCodes = uiSourceCodes.filter(filterOutService);
-    return uiSourceCodes.filter(filterOutAnonymous);
+    return uiSourceCodes.filter(filterOutService);
 };
 
 
@@ -1109,8 +1111,7 @@ TestSuite.prototype.evaluateInConsole_ = function(code, callback)
     {
         WebInspector.context.removeFlavorChangeListener(WebInspector.ExecutionContext, showConsoleAndEvaluate, this);
         var consoleView = WebInspector.ConsoleView.instance();
-        consoleView._prompt.setText(code);
-        consoleView._prompt.element.dispatchEvent(TestSuite.createKeyEvent("Enter"));
+        consoleView._prompt._appendCommand(code);
 
         this.addSniffer(WebInspector.ConsoleView.prototype, "_consoleMessageAddedForTest",
             function(viewMessage) {
@@ -1193,7 +1194,7 @@ TestSuite.prototype._waitForTargets = function(n, callback)
         else
             this.addSniffer(WebInspector.TargetManager.prototype, "addTarget", checkTargets.bind(this));
     }
-}
+};
 
 TestSuite.prototype._waitForExecutionContexts = function(n, callback)
 {
@@ -1207,7 +1208,7 @@ TestSuite.prototype._waitForExecutionContexts = function(n, callback)
         else
             this.addSniffer(WebInspector.RuntimeModel.prototype, "_executionContextCreated", checkForExecutionContexts.bind(this));
     }
-}
+};
 
 /**
  * Key event with given key identifier.

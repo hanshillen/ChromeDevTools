@@ -44,7 +44,7 @@ WebInspector.Settings = function(storage)
     /** @type {!Map<string, !WebInspector.Setting>} */
     this._moduleSettings = new Map();
     self.runtime.extensions("setting").forEach(this._registerModuleSetting.bind(this));
-}
+};
 
 WebInspector.Settings.prototype = {
     /**
@@ -129,7 +129,7 @@ WebInspector.Settings.prototype = {
         var versionSetting = WebInspector.settings.createSetting(WebInspector.VersionController._currentVersionName, 0);
         versionSetting.set(WebInspector.VersionController.currentVersion);
     }
-}
+};
 
 /**
  * @constructor
@@ -144,7 +144,7 @@ WebInspector.SettingsStorage = function(object, setCallback, removeCallback, rem
     this._setCallback = setCallback || function() {};
     this._removeCallback = removeCallback || function() {};
     this._removeAllCallback = removeAllCallback || function() {};
-}
+};
 
 WebInspector.SettingsStorage.prototype = {
     /**
@@ -209,7 +209,7 @@ WebInspector.SettingsStorage.prototype = {
         for (var i = 0; i < 10 && i < keys.length; ++i)
             WebInspector.console.log("Setting: '" + keys[i] + "', size: " + sizes[keys[i]]);
     }
-}
+};
 
 /**
  * @constructor
@@ -227,7 +227,7 @@ WebInspector.Setting = function(settings, name, defaultValue, eventSupport, stor
     this._defaultValue = defaultValue;
     this._eventSupport = eventSupport;
     this._storage = storage;
-}
+};
 
 WebInspector.Setting.prototype = {
     /**
@@ -310,7 +310,7 @@ WebInspector.Setting.prototype = {
         WebInspector.console.error(errorMessage);
         this._storage._dumpSizes();
     }
-}
+};
 
 /**
  * @constructor
@@ -326,7 +326,7 @@ WebInspector.RegExpSetting = function(settings, name, defaultValue, eventSupport
 {
     WebInspector.Setting.call(this, settings, name, defaultValue ? [{ pattern: defaultValue }] : [], eventSupport, storage);
     this._regexFlags = regexFlags;
-}
+};
 
 WebInspector.RegExpSetting.prototype = {
     /**
@@ -389,17 +389,17 @@ WebInspector.RegExpSetting.prototype = {
     },
 
     __proto__: WebInspector.Setting.prototype
-}
+};
 
 /**
  * @constructor
  */
 WebInspector.VersionController = function()
 {
-}
+};
 
 WebInspector.VersionController._currentVersionName = "inspectorVersion";
-WebInspector.VersionController.currentVersion = 19;
+WebInspector.VersionController.currentVersion = 20;
 
 WebInspector.VersionController.prototype = {
     updateVersion: function()
@@ -407,8 +407,7 @@ WebInspector.VersionController.prototype = {
         var localStorageVersion = window.localStorage ? window.localStorage[WebInspector.VersionController._currentVersionName] : 0;
         var versionSetting = WebInspector.settings.createSetting(WebInspector.VersionController._currentVersionName, 0);
         var currentVersion = WebInspector.VersionController.currentVersion;
-        // While localStorage version exists, treat it as the main one. It'll be erased once migrated to prefs.
-        var oldVersion = parseInt(localStorageVersion || "0", 10) || versionSetting.get();
+        var oldVersion = versionSetting.get() || parseInt(localStorageVersion || "0", 10);
         if (oldVersion === 0) {
             // First run, no need to do anything.
             versionSetting.set(currentVersion);
@@ -727,6 +726,14 @@ WebInspector.VersionController.prototype = {
         visibleColumnSettings.remove();
     },
 
+    _updateVersionFrom19To20: function()
+    {
+        var oldSetting = WebInspector.settings.createSetting("InspectorView.panelOrder", {});
+        var newSetting = WebInspector.settings.createSetting("panel-tabOrder", {});
+        newSetting.set(oldSetting.get());
+        oldSetting.remove();
+    },
+
     _migrateSettingsFromLocalStorage: function()
     {
         // This step migrates all the settings except for the ones below into the browser profile.
@@ -756,7 +763,7 @@ WebInspector.VersionController.prototype = {
         if (breakpointsSetting.get().length > maxBreakpointsCount)
             breakpointsSetting.set([]);
     }
-}
+};
 
 /**
  * @type {!WebInspector.Settings}
@@ -770,7 +777,7 @@ WebInspector.settings;
 WebInspector.moduleSetting = function(settingName)
 {
     return WebInspector.settings.moduleSetting(settingName);
-}
+};
 
 /**
  * @param {string} settingName
@@ -779,4 +786,4 @@ WebInspector.moduleSetting = function(settingName)
 WebInspector.settingForTest = function(settingName)
 {
     return WebInspector.settings.settingForTest(settingName);
-}
+};

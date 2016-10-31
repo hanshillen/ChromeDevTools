@@ -42,38 +42,46 @@ WebInspector.PaintProfilerSnapshot = function(target, snapshotId)
 {
     this._target = target;
     this._id = snapshotId;
-}
+    this._refCount = 1;
+};
 
 /**
  * @param {!WebInspector.Target} target
  * @param {!Array.<!WebInspector.PictureFragment>} fragments
- * @param {function(?WebInspector.PaintProfilerSnapshot)} callback
+ * @return {!Promise<?WebInspector.PaintProfilerSnapshot>}
  */
-WebInspector.PaintProfilerSnapshot.loadFromFragments = function(target, fragments, callback)
+WebInspector.PaintProfilerSnapshot.loadFromFragments = function(target, fragments)
 {
-    var wrappedCallback = InspectorBackend.wrapClientCallback(callback, "LayerTreeAgent.loadSnapshot(): ", WebInspector.PaintProfilerSnapshot.bind(null, target));
-    target.layerTreeAgent().loadSnapshot(fragments, wrappedCallback);
-}
+    return target.layerTreeAgent().loadSnapshot(fragments, (error, snapshotId) => error ? null : new WebInspector.PaintProfilerSnapshot(target, snapshotId));
+};
 
 /**
  * @param {!WebInspector.Target} target
  * @param {string} encodedPicture
- * @param {function(?WebInspector.PaintProfilerSnapshot)} callback
+ * @return {!Promise<?WebInspector.PaintProfilerSnapshot>}
  */
-WebInspector.PaintProfilerSnapshot.load = function(target, encodedPicture, callback)
+WebInspector.PaintProfilerSnapshot.load = function(target, encodedPicture)
 {
     var fragment = {
         x: 0,
         y: 0,
         picture: encodedPicture
     };
-    WebInspector.PaintProfilerSnapshot.loadFromFragments(target, [fragment], callback);
-}
+    return WebInspector.PaintProfilerSnapshot.loadFromFragments(target, [fragment]);
+};
 
 WebInspector.PaintProfilerSnapshot.prototype = {
-    dispose: function()
+    release: function()
     {
-        this._target.layerTreeAgent().releaseSnapshot(this._id);
+        console.assert(this._refCount > 0, "release is already called on the object");
+        if (!--this._refCount)
+            this._target.layerTreeAgent().releaseSnapshot(this._id);
+    },
+
+    addReference: function()
+    {
+        ++this._refCount;
+        console.assert(this._refCount > 0, "Referencing a dead object");
     },
 
     /**
@@ -88,12 +96,11 @@ WebInspector.PaintProfilerSnapshot.prototype = {
      * @param {?number} firstStep
      * @param {?number} lastStep
      * @param {?number} scale
-     * @param {function(string=)} callback
+     * @return {!Promise<?string>}
      */
-    requestImage: function(firstStep, lastStep, scale, callback)
+    replay: function(firstStep, lastStep, scale)
     {
-        var wrappedCallback = InspectorBackend.wrapClientCallback(callback, "LayerTreeAgent.replaySnapshot(): ");
-        this._target.layerTreeAgent().replaySnapshot(this._id, firstStep || undefined, lastStep || undefined, scale || 1.0, wrappedCallback);
+        return this._target.layerTreeAgent().replaySnapshot(this._id, firstStep || undefined, lastStep || undefined, scale || 1.0, (error, str) => error ? null : str);
     },
 
     /**
@@ -107,26 +114,22 @@ WebInspector.PaintProfilerSnapshot.prototype = {
     },
 
     /**
-     * @param {function(!Array.<!WebInspector.PaintProfilerLogItem>=)} callback
+     * @return {!Promise<?Array<!WebInspector.PaintProfilerLogItem>>}
      */
-    commandLog: function(callback)
+    commandLog: function()
     {
+        return this._target.layerTreeAgent().snapshotCommandLog(this._id, processLog);
+
         /**
          * @param {?string} error
-         * @param {!Array.<!WebInspector.RawPaintProfilerLogItem>} log
+         * @param {?Array<!Object>} log
          */
-        function callbackWrapper(error, log)
+        function processLog(error, log)
         {
-            if (error) {
-                console.error("LayerTreeAgent.snapshotCommandLog(): " + error);
-                callback();
-                return;
-            }
-            var logItems = log.map((entry, index) => new WebInspector.PaintProfilerLogItem(entry, index));
-            callback(logItems);
+            if (error)
+                return null;
+            return log.map((entry, index) => new WebInspector.PaintProfilerLogItem(/** @type {!WebInspector.RawPaintProfilerLogItem} */ (entry), index));
         }
-
-        this._target.layerTreeAgent().snapshotCommandLog(this._id, callbackWrapper);
     }
 };
 
@@ -145,4 +148,4 @@ WebInspector.PaintProfilerLogItem = function(rawEntry, commandIndex)
     this.method = rawEntry.method;
     this.params = rawEntry.params;
     this.commandIndex = commandIndex;
-}
+};

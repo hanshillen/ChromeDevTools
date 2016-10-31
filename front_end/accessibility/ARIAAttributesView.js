@@ -46,14 +46,14 @@ WebInspector.ARIAAttributesPane.prototype = {
 
 /**
  * @constructor
- * @extends {WebInspector.AXNodePropertyTreeElement}
+ * @extends {TreeElement}
  * @param {!WebInspector.ARIAAttributesPane} parentPane
  * @param {!WebInspector.DOMNode.Attribute} attribute
  * @param {!WebInspector.Target} target
  */
 WebInspector.ARIAAttributesTreeElement = function(parentPane, attribute, target)
 {
-    WebInspector.AXNodePropertyTreeElement.call(this, target);
+    TreeElement.call(this, "");
 
     this._parentPane = parentPane;
     this._attribute = attribute;
@@ -80,7 +80,6 @@ WebInspector.ARIAAttributesTreeElement.prototype = {
     },
 
     /**
-     * @override
      * @param {string} name
      */
     appendNameElement: function(name)
@@ -192,7 +191,7 @@ WebInspector.ARIAAttributesTreeElement.prototype = {
         }
     },
 
-    __proto__: WebInspector.AXNodePropertyTreeElement.prototype
+    __proto__: TreeElement.prototype
 };
 
 /**
@@ -215,7 +214,8 @@ WebInspector.ARIAAttributesTreeElement.createARIAValueElement = function(value)
  */
 WebInspector.ARIAAttributesPane.ARIAAttributePrompt = function(ariaCompletions, treeElement)
 {
-    WebInspector.TextPrompt.call(this, this._buildPropertyCompletions.bind(this));
+    WebInspector.TextPrompt.call(this);
+    this.initialize(this._buildPropertyCompletions.bind(this));
 
     this.setSuggestBoxEnabled(true);
 
@@ -244,7 +244,7 @@ WebInspector.ARIAAttributesPane.ARIAAttributePrompt.prototype = {
     },
 
     __proto__: WebInspector.TextPrompt.prototype
-}
+};
 
 
 WebInspector.ARIAAttributesPane._attributes = [

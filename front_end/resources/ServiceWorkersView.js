@@ -19,8 +19,20 @@ WebInspector.ServiceWorkersView = function()
     /** @type {!Map<!WebInspector.ServiceWorkerRegistration, !WebInspector.ServiceWorkersView.Section>} */
     this._sections = new Map();
 
+    this._toolbar.appendToolbarItem(WebInspector.NetworkConditionsSelector.createOfflineToolbarCheckbox());
+    var forceUpdate = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Update on reload"), WebInspector.UIString("Force update Service Worker on page reload"), WebInspector.settings.createSetting("serviceWorkerUpdateOnReload", false));
+    this._toolbar.appendToolbarItem(forceUpdate);
+    var fallbackToNetwork = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Bypass for network"), WebInspector.UIString("Bypass Service Worker and load resources from the network"), WebInspector.settings.createSetting("bypassServiceWorker", false));
+    this._toolbar.appendToolbarItem(fallbackToNetwork);
+    this._toolbar.appendSpacer();
+    this._showAllCheckbox = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Show all"), WebInspector.UIString("Show all Service Workers regardless of the origin"));
+    this._showAllCheckbox.inputElement.addEventListener("change", this._updateSectionVisibility.bind(this), false);
+    this._toolbar.appendToolbarItem(this._showAllCheckbox);
+
+    /** @type {!Map<!WebInspector.Target, !Array<!WebInspector.EventTarget.EventDescriptor>>}*/
+    this._eventListeners = new Map();
     WebInspector.targetManager.observeTargets(this);
-}
+};
 
 WebInspector.ServiceWorkersView.prototype = {
     /**
@@ -29,33 +41,22 @@ WebInspector.ServiceWorkersView.prototype = {
      */
     targetAdded: function(target)
     {
-        var securityOriginManager = WebInspector.SecurityOriginManager.fromTarget(target);
-        if (this._manager || !target.serviceWorkerManager || !securityOriginManager)
+        if (this._manager || !target.serviceWorkerManager)
             return;
         this._manager = target.serviceWorkerManager;
-        this._securityOriginManager = securityOriginManager;
-
-        this._toolbar.appendToolbarItem(WebInspector.NetworkConditionsSelector.createOfflineToolbarCheckbox());
-        var forceUpdate = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Update on reload"), WebInspector.UIString("Force update Service Worker on page reload"), this._manager.forceUpdateOnReloadSetting());
-        this._toolbar.appendToolbarItem(forceUpdate);
-        var networkManager = target && WebInspector.NetworkManager.fromTarget(target);
-        if (networkManager) {
-            var fallbackToNetwork = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Bypass for network"), WebInspector.UIString("Bypass Service Worker and load resources from the network"), networkManager.bypassServiceWorkerSetting());
-            this._toolbar.appendToolbarItem(fallbackToNetwork);
-            this._toolbar.appendSpacer();
-        }
-        this._showAllCheckbox = new WebInspector.ToolbarCheckbox(WebInspector.UIString("Show all"), WebInspector.UIString("Show all Service Workers regardless of the origin"));
-        this._showAllCheckbox.inputElement.addEventListener("change", this._updateSectionVisibility.bind(this), false);
-        this._toolbar.appendToolbarItem(this._showAllCheckbox);
+        this._subTargetsManager = target.subTargetsManager;
+        this._securityOriginManager = WebInspector.SecurityOriginManager.fromTarget(target);
 
         for (var registration of this._manager.registrations().values())
             this._updateRegistration(registration);
 
-        this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationUpdated, this._registrationUpdated, this);
-        this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationDeleted, this._registrationDeleted, this);
-        this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationErrorAdded, this._registrationErrorAdded, this);
-        securityOriginManager.addEventListener(WebInspector.SecurityOriginManager.Events.SecurityOriginAdded, this._updateSectionVisibility, this);
-        securityOriginManager.addEventListener(WebInspector.SecurityOriginManager.Events.SecurityOriginRemoved, this._updateSectionVisibility, this);
+        this._eventListeners.set(target, [
+            this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationUpdated, this._registrationUpdated, this),
+            this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationDeleted, this._registrationDeleted, this),
+            this._manager.addEventListener(WebInspector.ServiceWorkerManager.Events.RegistrationErrorAdded, this._registrationErrorAdded, this),
+            this._securityOriginManager.addEventListener(WebInspector.SecurityOriginManager.Events.SecurityOriginAdded, this._updateSectionVisibility, this),
+            this._securityOriginManager.addEventListener(WebInspector.SecurityOriginManager.Events.SecurityOriginRemoved, this._updateSectionVisibility, this),
+        ]);
     },
 
     /**
@@ -64,9 +65,13 @@ WebInspector.ServiceWorkersView.prototype = {
      */
     targetRemoved: function(target)
     {
-        if (this._manager !== target.serviceWorkerManager)
+        if (!this._manager || this._manager !== target.serviceWorkerManager)
             return;
+
+        WebInspector.EventTarget.removeEventListeners(this._eventListeners.get(target));
+        this._eventListeners.delete(target);
         this._manager = null;
+        this._subTargetsManager = null;
         this._securityOriginManager = null;
     },
 
@@ -108,7 +113,7 @@ WebInspector.ServiceWorkersView.prototype = {
     {
         var section = this._sections.get(registration);
         if (!section) {
-            section = new WebInspector.ServiceWorkersView.Section(this._manager, this._reportView.appendSection(""), registration);
+            section = new WebInspector.ServiceWorkersView.Section(this._manager, this._subTargetsManager, this._reportView.appendSection(""), registration);
             this._sections.set(registration, section);
         }
         this._updateSectionVisibility();
@@ -128,17 +133,19 @@ WebInspector.ServiceWorkersView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
  * @param {!WebInspector.ServiceWorkerManager} manager
+ * @param {!WebInspector.SubTargetsManager} subTargetsManager
  * @param {!WebInspector.ReportView.Section} section
  * @param {!WebInspector.ServiceWorkerRegistration} registration
  */
-WebInspector.ServiceWorkersView.Section = function(manager, section, registration)
+WebInspector.ServiceWorkersView.Section = function(manager, subTargetsManager, section, registration)
 {
     this._manager = manager;
+    this._subTargetsManager = subTargetsManager;
     this._section = section;
     this._registration = registration;
 
@@ -171,7 +178,7 @@ WebInspector.ServiceWorkersView.Section = function(manager, section, registratio
     for (var error of registration.errors)
         this._addError(error);
     this._throttler = new WebInspector.Throttler(500);
-}
+};
 
 WebInspector.ServiceWorkersView.Section.prototype = {
     _scheduleUpdate: function()
@@ -181,6 +188,18 @@ WebInspector.ServiceWorkersView.Section.prototype = {
             return;
         }
         this._throttler.schedule(this._update.bind(this));
+    },
+
+    /**
+     * @param {string} versionId
+     * @return {?WebInspector.Target}
+     */
+    _targetForVersionId: function(versionId)
+    {
+        var version = this._manager.findVersion(versionId);
+        if (!version || !version.targetId)
+            return null;
+        return this._subTargetsManager.targetForId(version.targetId);
     },
 
     /**
@@ -221,7 +240,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
 
             if (active.isRunning() || active.isStarting()) {
                 createLink(activeEntry, WebInspector.UIString("stop"), this._stopButtonClicked.bind(this, active.id));
-                if (!this._manager.targetForVersionId(active.id))
+                if (!this._targetForVersionId(active.id))
                     createLink(activeEntry, WebInspector.UIString("inspect"), this._inspectButtonClicked.bind(this, active.id));
             } else if (active.isStartable()) {
                 createLink(activeEntry, WebInspector.UIString("start"), this._startButtonClicked.bind(this));
@@ -234,7 +253,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
                 var clientLabelText = clientsList.createChild("div", "service-worker-client");
                 if (this._clientInfoCache.has(client))
                     this._updateClientInfo(clientLabelText, /** @type {!WebInspector.TargetInfo} */(this._clientInfoCache.get(client)));
-                this._manager.getTargetInfo(client, this._onClientInfo.bind(this, clientLabelText));
+                this._subTargetsManager.getTargetInfo(client, this._onClientInfo.bind(this, clientLabelText));
             }
         }
 
@@ -244,7 +263,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
             waitingEntry.createChild("span").textContent = WebInspector.UIString("#%s waiting to activate", waiting.id);
             createLink(waitingEntry, WebInspector.UIString("skipWaiting"), this._skipButtonClicked.bind(this));
             waitingEntry.createChild("div", "service-worker-subtitle").textContent = new Date(waiting.scriptResponseTime * 1000).toLocaleString();
-            if (!this._manager.targetForVersionId(waiting.id) && (waiting.isRunning() || waiting.isStarting()))
+            if (!this._targetForVersionId(waiting.id) && (waiting.isRunning() || waiting.isStarting()))
                 createLink(waitingEntry, WebInspector.UIString("inspect"), this._inspectButtonClicked.bind(this, waiting.id));
         }
         if (installing) {
@@ -252,7 +271,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
             installingEntry.createChild("div", "service-worker-installing-circle");
             installingEntry.createChild("span").textContent = WebInspector.UIString("#%s installing", installing.id);
             installingEntry.createChild("div", "service-worker-subtitle").textContent = new Date(installing.scriptResponseTime * 1000).toLocaleString();
-            if (!this._manager.targetForVersionId(installing.id) && (installing.isRunning() || installing.isStarting()))
+            if (!this._targetForVersionId(installing.id) && (installing.isRunning() || installing.isStarting()))
                 createLink(installingEntry, WebInspector.UIString("inspect"), this._inspectButtonClicked.bind(this, installing.id));
         }
 
@@ -285,7 +304,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
      */
     _addError: function(error)
     {
-        var target = this._manager.targetForVersionId(error.versionId);
+        var target = this._targetForVersionId(error.versionId);
         var message = this._errorsList.createChild("div");
         if (this._errorsList.childElementCount > 100)
             this._errorsList.firstElementChild.remove();
@@ -334,8 +353,8 @@ WebInspector.ServiceWorkersView.Section.prototype = {
      */
     _updateClientInfo: function(element, targetInfo)
     {
-        if (!(targetInfo.isWebContents() || targetInfo.isFrame())) {
-            element.createTextChild(WebInspector.UIString("Worker: %s", targetInfo.url));
+        if (!targetInfo.canActivate) {
+            element.createTextChild(targetInfo.title);
             return;
         }
         element.removeChildren();
@@ -350,7 +369,7 @@ WebInspector.ServiceWorkersView.Section.prototype = {
      */
     _activateTarget: function(targetId)
     {
-        this._manager.activateTarget(targetId);
+        this._subTargetsManager.activateTarget(targetId);
     },
 
     _startButtonClicked: function()
@@ -414,4 +433,4 @@ WebInspector.ServiceWorkersView.Section.prototype = {
         if (this._pendingUpdate)
             clearTimeout(this._pendingUpdate);
     }
-}
+};

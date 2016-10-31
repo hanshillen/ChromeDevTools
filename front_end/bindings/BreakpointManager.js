@@ -34,15 +34,13 @@
  * @implements {WebInspector.TargetManager.Observer}
  * @param {?WebInspector.Setting} breakpointsSetting
  * @param {!WebInspector.Workspace} workspace
- * @param {!WebInspector.NetworkMapping} networkMapping
  * @param {!WebInspector.TargetManager} targetManager
  * @param {!WebInspector.DebuggerWorkspaceBinding} debuggerWorkspaceBinding
  */
-WebInspector.BreakpointManager = function(breakpointsSetting, workspace, networkMapping, targetManager, debuggerWorkspaceBinding)
+WebInspector.BreakpointManager = function(breakpointsSetting, workspace, targetManager, debuggerWorkspaceBinding)
 {
     this._storage = new WebInspector.BreakpointManager.Storage(this, breakpointsSetting);
     this._workspace = workspace;
-    this._networkMapping = networkMapping;
     this._targetManager = targetManager;
     this._debuggerWorkspaceBinding = debuggerWorkspaceBinding;
 
@@ -55,14 +53,14 @@ WebInspector.BreakpointManager = function(breakpointsSetting, workspace, network
     this._workspace.addEventListener(WebInspector.Workspace.Events.ProjectRemoved, this._projectRemoved, this);
     this._workspace.addEventListener(WebInspector.Workspace.Events.UISourceCodeAdded, this._uiSourceCodeAdded, this);
     this._workspace.addEventListener(WebInspector.Workspace.Events.UISourceCodeRemoved, this._uiSourceCodeRemoved, this);
-}
+};
 
 /** @enum {symbol} */
 WebInspector.BreakpointManager.Events = {
     BreakpointAdded: Symbol("breakpoint-added"),
     BreakpointRemoved: Symbol("breakpoint-removed"),
     BreakpointsActiveStateChanged: Symbol("BreakpointsActiveStateChanged")
-}
+};
 
 /**
  * @param {string} sourceFileId
@@ -75,7 +73,7 @@ WebInspector.BreakpointManager._breakpointStorageId = function(sourceFileId, lin
     if (!sourceFileId)
         return "";
     return sourceFileId + ":" + lineNumber + ":" + columnNumber;
-}
+};
 
 WebInspector.BreakpointManager.prototype = {
     /**
@@ -84,9 +82,7 @@ WebInspector.BreakpointManager.prototype = {
      */
     _sourceFileId: function(uiSourceCode)
     {
-        var networkURL = this._networkMapping.networkURL(uiSourceCode)
-        if (!networkURL)
-            return "";
+        // TODO(lushnikov): _sourceFileId is not needed any more.
         return uiSourceCode.url();
     },
 
@@ -461,7 +457,7 @@ WebInspector.BreakpointManager.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -498,7 +494,7 @@ WebInspector.BreakpointManager.Breakpoint = function(breakpointManager, projectI
     this._targetBreakpoints = new Map();
     this._updateState(condition, enabled);
     this._breakpointManager._targetManager.observeTargets(this);
-}
+};
 
 WebInspector.BreakpointManager.Breakpoint.prototype = {
     /**
@@ -510,9 +506,8 @@ WebInspector.BreakpointManager.Breakpoint.prototype = {
         var debuggerModel = WebInspector.DebuggerModel.fromTarget(target);
         if (!debuggerModel)
             return;
-        var networkMapping = this._breakpointManager._networkMapping;
         var debuggerWorkspaceBinding = this._breakpointManager._debuggerWorkspaceBinding;
-        this._targetBreakpoints.set(target, new WebInspector.BreakpointManager.TargetBreakpoint(debuggerModel, this, networkMapping, debuggerWorkspaceBinding));
+        this._targetBreakpoints.set(target, new WebInspector.BreakpointManager.TargetBreakpoint(debuggerModel, this, debuggerWorkspaceBinding));
     },
 
     /**
@@ -725,22 +720,20 @@ WebInspector.BreakpointManager.Breakpoint.prototype = {
         for (var i = 0; i < targetBreakpoints.length; ++i)
             targetBreakpoints[i]._resetLocations();
     }
-}
+};
 
 /**
  * @constructor
  * @extends {WebInspector.SDKObject}
  * @param {!WebInspector.DebuggerModel} debuggerModel
  * @param {!WebInspector.BreakpointManager.Breakpoint} breakpoint
- * @param {!WebInspector.NetworkMapping} networkMapping
  * @param {!WebInspector.DebuggerWorkspaceBinding} debuggerWorkspaceBinding
  */
-WebInspector.BreakpointManager.TargetBreakpoint = function(debuggerModel, breakpoint, networkMapping, debuggerWorkspaceBinding)
+WebInspector.BreakpointManager.TargetBreakpoint = function(debuggerModel, breakpoint, debuggerWorkspaceBinding)
 {
     WebInspector.SDKObject.call(this, debuggerModel.target());
     this._debuggerModel = debuggerModel;
     this._breakpoint = breakpoint;
-    this._networkMapping = networkMapping;
     this._debuggerWorkspaceBinding = debuggerWorkspaceBinding;
 
     this._liveLocations = new WebInspector.LiveLocationPool();
@@ -755,7 +748,7 @@ WebInspector.BreakpointManager.TargetBreakpoint = function(debuggerModel, breakp
     this._currentState = null;
     if (this._debuggerModel.debuggerEnabled())
         this._scheduleUpdateInDebugger();
-}
+};
 
 WebInspector.BreakpointManager.TargetBreakpoint.prototype = {
 
@@ -805,7 +798,7 @@ WebInspector.BreakpointManager.TargetBreakpoint.prototype = {
      */
     _updateInDebugger: function(callback)
     {
-        if (this.target().isDetached()) {
+        if (this.target().isDisposed()) {
             this._cleanUpAfterDebuggerIsGone();
             callback();
             return;
@@ -830,9 +823,7 @@ WebInspector.BreakpointManager.TargetBreakpoint.prototype = {
             var position = this._breakpoint._currentState;
             newState = new WebInspector.BreakpointManager.Breakpoint.State(position.url, null, position.lineNumber, position.columnNumber, condition);
         } else if (uiSourceCode) {
-            var networkURL = this._networkMapping.networkURL(uiSourceCode);
-            if (networkURL)
-                newState = new WebInspector.BreakpointManager.Breakpoint.State(networkURL, null, lineNumber, columnNumber, condition);
+            newState = new WebInspector.BreakpointManager.Breakpoint.State(uiSourceCode.url(), null, lineNumber, columnNumber, condition);
         }
         if (this._debuggerId && WebInspector.BreakpointManager.Breakpoint.State.equals(newState, this._currentState)) {
             callback();
@@ -965,7 +956,7 @@ WebInspector.BreakpointManager.TargetBreakpoint.prototype = {
     },
 
     __proto__: WebInspector.SDKObject.prototype
-}
+};
 
 /**
  * @constructor
@@ -982,7 +973,7 @@ WebInspector.BreakpointManager.Breakpoint.State = function(url, scriptId, lineNu
     this.lineNumber = lineNumber;
     this.columnNumber = columnNumber;
     this.condition = condition;
-}
+};
 
 /**
  * @param {?WebInspector.BreakpointManager.Breakpoint.State|undefined} stateA
@@ -998,7 +989,7 @@ WebInspector.BreakpointManager.Breakpoint.State.equals = function(stateA, stateB
         return false;
 
     return stateA.url === stateB.url && stateA.lineNumber === stateB.lineNumber && stateA.columnNumber === stateB.columnNumber && stateA.condition === stateB.condition;
-}
+};
 
 /**
  * @constructor
@@ -1017,7 +1008,7 @@ WebInspector.BreakpointManager.Storage = function(breakpointManager, setting)
         breakpoint.columnNumber = breakpoint.columnNumber || 0;
         this._breakpoints[breakpoint.sourceFileId + ":" + breakpoint.lineNumber + ":" + breakpoint.columnNumber] = breakpoint;
     }
-}
+};
 
 WebInspector.BreakpointManager.Storage.prototype = {
     mute: function()
@@ -1074,7 +1065,7 @@ WebInspector.BreakpointManager.Storage.prototype = {
             breakpointsArray.push(this._breakpoints[id]);
         this._setting.set(breakpointsArray);
     }
-}
+};
 
 /**
  * @constructor
@@ -1087,7 +1078,7 @@ WebInspector.BreakpointManager.Storage.Item = function(breakpoint)
     this.columnNumber = breakpoint.columnNumber();
     this.condition = breakpoint.condition();
     this.enabled = breakpoint.enabled();
-}
+};
 
 /** @type {!WebInspector.BreakpointManager} */
 WebInspector.breakpointManager;

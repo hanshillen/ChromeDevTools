@@ -9,7 +9,7 @@ WebInspector.LineLevelProfile = function()
 {
     this._locationPool = new WebInspector.LiveLocationPool();
     this.reset();
-}
+};
 
 /**
  * @return {!WebInspector.LineLevelProfile}
@@ -19,7 +19,7 @@ WebInspector.LineLevelProfile.instance = function()
     if (!WebInspector.LineLevelProfile._instance)
         WebInspector.LineLevelProfile._instance = new WebInspector.LineLevelProfile();
     return WebInspector.LineLevelProfile._instance;
-}
+};
 
 WebInspector.LineLevelProfile.prototype = {
     /**
@@ -71,14 +71,18 @@ WebInspector.LineLevelProfile.prototype = {
 
     _doUpdate: function()
     {
+        // TODO(alph): use scriptId instead of urls for the target.
         this._locationPool.disposeAll();
         WebInspector.workspace.uiSourceCodes().forEach(uiSourceCode => uiSourceCode.removeAllLineDecorations(WebInspector.LineLevelProfile.LineDecorator.type));
-        var debuggerModel = WebInspector.DebuggerModel.fromTarget(WebInspector.targetManager.mainTarget());
-        if (!debuggerModel)
-            return;
         for (var fileInfo of this._files) {
             var url = /** @type {string} */ (fileInfo[0]);
             var uiSourceCode = WebInspector.workspace.uiSourceCodeForURL(url);
+            if (!uiSourceCode)
+                continue;
+            var target = WebInspector.NetworkProject.targetForUISourceCode(uiSourceCode) || WebInspector.targetManager.mainTarget();
+            var debuggerModel = target ? WebInspector.DebuggerModel.fromTarget(target) : null;
+            if (!debuggerModel)
+                continue;
             for (var lineInfo of fileInfo[1]) {
                 var line = lineInfo[0] - 1;
                 var time = lineInfo[1];
@@ -90,7 +94,7 @@ WebInspector.LineLevelProfile.prototype = {
             }
         }
     }
-}
+};
 
 /**
  * @constructor
@@ -102,7 +106,7 @@ WebInspector.LineLevelProfile.Presentation = function(rawLocation, time, locatio
 {
     this._time = time;
     WebInspector.debuggerWorkspaceBinding.createLiveLocation(rawLocation, this.updateLocation.bind(this), locationPool);
-}
+};
 
 WebInspector.LineLevelProfile.Presentation.prototype = {
     /**
@@ -116,7 +120,7 @@ WebInspector.LineLevelProfile.Presentation.prototype = {
         if (this._uiLocation)
             this._uiLocation.uiSourceCode.addLineDecoration(this._uiLocation.lineNumber, WebInspector.LineLevelProfile.LineDecorator.type, this._time);
     }
-}
+};
 
 /**
  * @constructor
@@ -124,7 +128,7 @@ WebInspector.LineLevelProfile.Presentation.prototype = {
  */
 WebInspector.LineLevelProfile.LineDecorator = function()
 {
-}
+};
 
 WebInspector.LineLevelProfile.LineDecorator.type = "performance";
 
@@ -152,4 +156,4 @@ WebInspector.LineLevelProfile.LineDecorator.prototype = {
             textEditor.setGutterDecoration(decoration.line(), gutterType, element);
         }
     }
-}
+};

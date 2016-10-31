@@ -47,7 +47,6 @@
 }
 
 :focus {
-	
     outline: none;
 }
 
@@ -89,6 +88,7 @@ iframe.fill {
 .widget {
     position: relative;
     flex: auto;
+    contain: layout style;
 }
 
 .hbox {
@@ -279,6 +279,12 @@ body.inactive select.chrome-select,
     color: #aaa;
 }
 
+.chrome-select optgroup,
+.chrome-select option {
+    background-color: #EEEEEE;
+    color: #222;
+}
+
 :not(.platform-mac).-theme-with-dark-background ::-webkit-scrollbar,
 :host-context(:not(.platform-mac).-theme-with-dark-background) ::-webkit-scrollbar {
     width: 14px;
@@ -305,4 +311,26 @@ body.inactive select.chrome-select,
 
 label[is=dt-icon-label] {
     flex: none;
+}
+
+.full-widget-dimmed-banner a {
+    color: inherit;
+}
+
+.full-widget-dimmed-banner {
+    color: #777;
+    background-color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    font-size: 13px;
+    overflow: auto;
+    z-index: 500;
 }

@@ -8,7 +8,7 @@
  */
 WebInspector.ColorSwatch = function()
 {
-}
+};
 
 /**
  * @return {!WebInspector.ColorSwatch}
@@ -19,7 +19,7 @@ WebInspector.ColorSwatch.create = function()
         WebInspector.ColorSwatch._constructor = registerCustomElement("span", "color-swatch", WebInspector.ColorSwatch.prototype);
 
     return /** @type {!WebInspector.ColorSwatch} */(new WebInspector.ColorSwatch._constructor());
-}
+};
 
 WebInspector.ColorSwatch.prototype = {
     /**
@@ -91,8 +91,8 @@ WebInspector.ColorSwatch.prototype = {
         this._iconElement = root.createChild("span", "color-swatch");
         this._iconElement.title = WebInspector.UIString("Shift-click to change color format");
         this._swatchInner = this._iconElement.createChild("span", "color-swatch-inner");
-        this._swatchInner.addEventListener("dblclick", consumeEvent, false);
-        this._swatchInner.addEventListener("mousedown", consumeEvent, false);
+        this._swatchInner.addEventListener("dblclick", (e) => e.consume(), false);
+        this._swatchInner.addEventListener("mousedown", (e) => e.consume(), false);
         this._swatchInner.addEventListener("click", this._handleClick.bind(this), true);
 
         root.createChild("content");
@@ -111,7 +111,7 @@ WebInspector.ColorSwatch.prototype = {
     },
 
     __proto__: HTMLSpanElement.prototype
-}
+};
 
 /**
  * @param {!WebInspector.Color} color
@@ -160,7 +160,7 @@ WebInspector.ColorSwatch._nextColorFormat = function(color, curFormat)
     default:
         return cf.RGBA;
     }
-}
+};
 
 /**
  * @constructor
@@ -168,7 +168,7 @@ WebInspector.ColorSwatch._nextColorFormat = function(color, curFormat)
  */
 WebInspector.BezierSwatch = function()
 {
-}
+};
 
 /**
  * @return {!WebInspector.BezierSwatch}
@@ -179,7 +179,7 @@ WebInspector.BezierSwatch.create = function()
         WebInspector.BezierSwatch._constructor = registerCustomElement("span", "bezier-swatch", WebInspector.BezierSwatch.prototype);
 
     return /** @type {!WebInspector.BezierSwatch} */(new WebInspector.BezierSwatch._constructor());
-}
+};
 
 WebInspector.BezierSwatch.prototype = {
     /**
@@ -223,7 +223,7 @@ WebInspector.BezierSwatch.prototype = {
     },
 
     __proto__: HTMLSpanElement.prototype
-}
+};
 
 /**
  * @constructor
@@ -231,7 +231,7 @@ WebInspector.BezierSwatch.prototype = {
  */
 WebInspector.CSSShadowSwatch = function()
 {
-}
+};
 
 /**
  * @return {!WebInspector.CSSShadowSwatch}
@@ -242,7 +242,7 @@ WebInspector.CSSShadowSwatch.create = function()
         WebInspector.CSSShadowSwatch._constructor = registerCustomElement("span", "css-shadow-swatch", WebInspector.CSSShadowSwatch.prototype);
 
     return /** @type {!WebInspector.CSSShadowSwatch} */(new WebInspector.CSSShadowSwatch._constructor());
-}
+};
 
 WebInspector.CSSShadowSwatch.prototype = {
     /**
@@ -307,4 +307,4 @@ WebInspector.CSSShadowSwatch.prototype = {
     },
 
     __proto__: HTMLSpanElement.prototype
-}
+};

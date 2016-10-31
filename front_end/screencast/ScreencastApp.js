@@ -32,7 +32,6 @@ WebInspector.ScreencastApp.prototype = {
         this._rootSplitWidget.hideMain();
 
         this._rootSplitWidget.setSidebarWidget(WebInspector.inspectorView);
-        WebInspector.inspectorView.showInitialPanel();
         rootView.attachToDocument(document);
     },
 
@@ -114,7 +113,7 @@ WebInspector.ScreencastApp._instance = function()
  */
 WebInspector.ScreencastApp.ToolbarButtonProvider = function()
 {
-}
+};
 
 WebInspector.ScreencastApp.ToolbarButtonProvider.prototype = {
     /**
@@ -125,7 +124,7 @@ WebInspector.ScreencastApp.ToolbarButtonProvider.prototype = {
     {
         return WebInspector.ScreencastApp._instance()._toggleButton;
     }
-}
+};
 
 /**
  * @constructor

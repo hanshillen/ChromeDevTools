@@ -6,28 +6,26 @@
 
 /**
  * @constructor
- * @extends {Protocol.Agents}
+ * @extends {Protocol.Target}
  * @param {!WebInspector.TargetManager} targetManager
  * @param {string} name
  * @param {number} capabilitiesMask
- * @param {!InspectorBackendClass.Connection} connection
+ * @param {!InspectorBackendClass.Connection.Factory} connectionFactory
  * @param {?WebInspector.Target} parentTarget
  */
-WebInspector.Target = function(targetManager, name, capabilitiesMask, connection, parentTarget)
+WebInspector.Target = function(targetManager, name, capabilitiesMask, connectionFactory, parentTarget)
 {
-    Protocol.Agents.call(this, connection.agentsMap());
+    Protocol.Target.call(this, connectionFactory);
     this._targetManager = targetManager;
     this._name = name;
     this._inspectedURL = "";
     this._capabilitiesMask = capabilitiesMask;
-    this._connection = connection;
     this._parentTarget = parentTarget;
-    connection.addEventListener(InspectorBackendClass.Connection.Events.Disconnected, this._onDisconnect, this);
     this._id = WebInspector.Target._nextId++;
 
     /** @type {!Map.<!Function, !WebInspector.SDKModel>} */
     this._modelByConstructor = new Map();
-}
+};
 
 /**
  * @enum {number}
@@ -38,12 +36,26 @@ WebInspector.Target.Capability = {
     JS: 4,
     Log: 8,
     Network: 16,
-    Worker: 32
+    Target: 32
 };
 
 WebInspector.Target._nextId = 1;
 
 WebInspector.Target.prototype = {
+    /**
+     * @return {boolean}
+     */
+    isNodeJS: function()
+    {
+        // TODO(lushnikov): this is an unreliable way to detect Node.js targets.
+        return this._capabilitiesMask === WebInspector.Target.Capability.JS || this._isNodeJSForTest;
+    },
+
+    setIsNodeJSForTest: function()
+    {
+        this._isNodeJSForTest = true;
+    },
+
     /**
      * @return {number}
      */
@@ -57,7 +69,7 @@ WebInspector.Target.prototype = {
      */
     name: function()
     {
-        return this._name;
+        return this._name || this._inspectedURLName;
     },
 
     /**
@@ -78,31 +90,12 @@ WebInspector.Target.prototype = {
     },
 
     /**
-     *
-     * @return {!InspectorBackendClass.Connection}
-     */
-    connection: function()
-    {
-        return this._connection;
-    },
-
-    /**
      * @param {string} label
      * @return {string}
      */
     decorateLabel: function(label)
     {
         return !this.hasBrowserCapability() ? "\u2699 " + label : label;
-    },
-
-    /**
-     * @override
-     * @param {string} domain
-     * @param {!Object} dispatcher
-     */
-    registerDispatcher: function(domain, dispatcher)
-    {
-        this._connection.registerDispatcher(domain, dispatcher);
     },
 
     /**
@@ -140,9 +133,9 @@ WebInspector.Target.prototype = {
     /**
      * @return {boolean}
      */
-    hasWorkerCapability: function()
+    hasTargetCapability: function()
     {
-        return this.hasAllCapabilities(WebInspector.Target.Capability.Worker);
+        return this.hasAllCapabilities(WebInspector.Target.Capability.Target);
     },
 
     /**
@@ -161,25 +154,14 @@ WebInspector.Target.prototype = {
         return this._parentTarget;
     },
 
-    _onDisconnect: function()
+    /**
+     * @override
+     */
+    dispose: function()
     {
         this._targetManager.removeTarget(this);
-        this._dispose();
-    },
-
-    _dispose: function()
-    {
-        this._targetManager.dispatchEventToListeners(WebInspector.TargetManager.Events.TargetDisposed, this);
-        if (this.workerManager)
-            this.workerManager.dispose();
-    },
-
-    /**
-     * @return {boolean}
-     */
-    isDetached: function()
-    {
-        return this._connection.isClosed();
+        for (var model of this._modelByConstructor.valuesArray())
+            model.dispose();
     },
 
     /**
@@ -213,12 +195,17 @@ WebInspector.Target.prototype = {
     setInspectedURL: function(inspectedURL)
     {
         this._inspectedURL = inspectedURL;
-        InspectorFrontendHost.inspectedURLChanged(inspectedURL || "");
+        var parsedURL = inspectedURL.asParsedURL();
+        this._inspectedURLName = parsedURL ? parsedURL.lastPathComponentWithFragment() : "#" + this._id;
+        if (!this.parentTarget())
+            InspectorFrontendHost.inspectedURLChanged(inspectedURL || "");
         this._targetManager.dispatchEventToListeners(WebInspector.TargetManager.Events.InspectedURLChanged, this);
+        if (!this._name)
+            this._targetManager.dispatchEventToListeners(WebInspector.TargetManager.Events.NameChanged, this);
     },
 
-    __proto__: Protocol.Agents.prototype
-}
+    __proto__: Protocol.Target.prototype
+};
 
 /**
  * @constructor
@@ -229,7 +216,7 @@ WebInspector.SDKObject = function(target)
 {
     WebInspector.Object.call(this);
     this._target = target;
-}
+};
 
 WebInspector.SDKObject.prototype = {
     /**
@@ -241,7 +228,7 @@ WebInspector.SDKObject.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -253,8 +240,7 @@ WebInspector.SDKModel = function(modelClass, target)
 {
     WebInspector.SDKObject.call(this, target);
     target._modelByConstructor.set(modelClass, this);
-    WebInspector.targetManager.addEventListener(WebInspector.TargetManager.Events.TargetDisposed, this._targetDisposed, this);
-}
+};
 
 WebInspector.SDKModel.prototype = {
     /**
@@ -284,8 +270,7 @@ WebInspector.SDKModel.prototype = {
         if (target !== this._target)
             return;
         this.dispose();
-        WebInspector.targetManager.removeEventListener(WebInspector.TargetManager.Events.TargetDisposed, this._targetDisposed, this);
     },
 
     __proto__: WebInspector.SDKObject.prototype
-}
+};

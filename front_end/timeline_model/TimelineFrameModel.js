@@ -36,7 +36,7 @@ WebInspector.TimelineFrameModel = function(categoryMapper)
 {
     this._categoryMapper = categoryMapper;
     this.reset();
-}
+};
 
 WebInspector.TimelineFrameModel._mainFrameMarkers = [
     WebInspector.TimelineModel.RecordType.ScheduleStyleRecalculation,
@@ -103,101 +103,20 @@ WebInspector.TimelineFrameModel.prototype = {
 
     /**
      * @param {!WebInspector.TracingModel.Event} rasterTask
-     * @param {function(?DOMAgent.Rect, ?WebInspector.PaintProfilerSnapshot)} callback
+     * @return Promise<?{rect: !DOMAgent.Rect, snapshot: !WebInspector.PaintProfilerSnapshot}>}
      */
-    requestRasterTile: function(rasterTask, callback)
+    rasterTilePromise: function(rasterTask)
     {
-        var target = this._target;
-        if (!target) {
-            callback(null, null);
-            return;
-        }
+        if (!this._target)
+            return Promise.resolve(null);
         var data = rasterTask.args["tileData"];
         var frameId = data["sourceFrameNumber"];
-        var frame = frameId && this._frameById[frameId];
-        if (!frame || !frame.layerTree) {
-            callback(null, null);
-            return;
-        }
-
         var tileId = data["tileId"] && data["tileId"]["id_ref"];
-        /** @type {!Array.<!WebInspector.PictureFragment>}> */
-        var fragments = [];
-        /** @type {?WebInspector.TracingLayerTile} */
-        var tile = null;
-        var x0 = Infinity;
-        var y0 = Infinity;
+        var frame = frameId && this._frameById[frameId];
+        if (!frame || !frame.layerTree || !tileId)
+            return Promise.resolve(null);
 
-        frame.layerTree.resolve(layerTreeResolved);
-        /**
-         * @param {!WebInspector.LayerTreeBase} layerTree
-         */
-        function layerTreeResolved(layerTree)
-        {
-            tile = tileId && (/** @type {!WebInspector.TracingLayerTree} */ (layerTree)).tileById("cc::Tile/" + tileId);
-            if (!tile) {
-                console.error("Tile " + tileId + " missing in frame " + frameId);
-                callback(null, null);
-                return;
-            }
-            var fetchPictureFragmentsBarrier = new CallbackBarrier();
-            for (var paint of frame.paints) {
-                if (tile.layer_id === paint.layerId())
-                    paint.loadPicture(fetchPictureFragmentsBarrier.createCallback(pictureLoaded));
-            }
-            fetchPictureFragmentsBarrier.callWhenDone(allPicturesLoaded);
-        }
-
-        /**
-         * @param {number} a1
-         * @param {number} a2
-         * @param {number} b1
-         * @param {number} b2
-         * @return {boolean}
-         */
-        function segmentsOverlap(a1, a2, b1, b2)
-        {
-            console.assert(a1 <= a2 && b1 <= b2, "segments should be specified as ordered pairs");
-            return a2 > b1 && a1 < b2;
-        }
-        /**
-         * @param {!Array.<number>} a
-         * @param {!Array.<number>} b
-         * @return {boolean}
-         */
-        function rectsOverlap(a, b)
-        {
-            return segmentsOverlap(a[0], a[0] + a[2], b[0], b[0] + b[2]) && segmentsOverlap(a[1], a[1] + a[3], b[1], b[1] + b[3]);
-        }
-
-        /**
-         * @param {?Array.<number>} rect
-         * @param {?string} picture
-         */
-        function pictureLoaded(rect, picture)
-        {
-            if (!rect || !picture)
-                return;
-            if (!rectsOverlap(rect, tile.content_rect))
-                return;
-            var x = rect[0];
-            var y = rect[1];
-            x0 = Math.min(x0, x);
-            y0 = Math.min(y0, y);
-            fragments.push({x: x, y: y, picture: picture});
-        }
-
-        function allPicturesLoaded()
-        {
-            if (!fragments.length) {
-                callback(null, null);
-                return;
-            }
-            var rectArray = tile.content_rect;
-            // Rect is in layer content coordinates, make it relative to picture by offsetting to the top left corner.
-            var rect = {x: rectArray[0] - x0, y: rectArray[1] - y0, width: rectArray[2], height: rectArray[3]};
-            WebInspector.PaintProfilerSnapshot.loadFromFragments(target, fragments, callback.bind(null, rect));
-        }
+        return frame.layerTree.layerTreePromise().then(layerTree => layerTree && layerTree.pictureForRasterTile(tileId));
     },
 
     reset: function()
@@ -284,7 +203,7 @@ WebInspector.TimelineFrameModel.prototype = {
     },
 
     /**
-     * @param {!WebInspector.DeferredLayerTree} layerTree
+     * @param {!WebInspector.TracingFrameLayerTree} layerTree
      */
     handleLayerTreeSnapshot: function(layerTree)
     {
@@ -319,6 +238,8 @@ WebInspector.TimelineFrameModel.prototype = {
     {
         frame._setLayerTree(this._lastLayerTree);
         frame._setEndTime(endTime);
+        if (this._lastLayerTree)
+            this._lastLayerTree._setPaints(frame._paints);
         if (this._frames.length && (frame.startTime !== this._frames.peekLast().endTime || frame.startTime > frame.endTime))
             console.assert(false, `Inconsistent frame time for frame ${this._frames.length} (${frame.startTime} - ${frame.endTime})`);
         this._frames.push(frame);
@@ -329,7 +250,7 @@ WebInspector.TimelineFrameModel.prototype = {
     _commitPendingFrame: function()
     {
         this._lastFrame._addTimeForCategories(this._framePendingActivation.timeByCategory);
-        this._lastFrame.paints = this._framePendingActivation.paints;
+        this._lastFrame._paints = this._framePendingActivation.paints;
         this._lastFrame._mainFrameId = this._framePendingActivation.mainFrameId;
         this._framePendingActivation = null;
     },
@@ -385,7 +306,7 @@ WebInspector.TimelineFrameModel.prototype = {
             this._mainThread = event.thread;
         } else if (event.phase === WebInspector.TracingModel.Phase.SnapshotObject && event.name === eventNames.LayerTreeHostImplSnapshot && parseInt(event.id, 0) === this._layerTreeId) {
             var snapshot = /** @type {!WebInspector.TracingModel.ObjectSnapshot} */ (event);
-            this.handleLayerTreeSnapshot(new WebInspector.DeferredTracingLayerTree(snapshot, this._target));
+            this.handleLayerTreeSnapshot(new WebInspector.TracingFrameLayerTree(this._target, snapshot));
         } else {
             this._processCompositorEvents(event);
             if (event.thread === this._mainThread)
@@ -458,36 +379,30 @@ WebInspector.TimelineFrameModel.prototype = {
         var categoryName = this._categoryMapper(event);
         timeByCategory[categoryName] = (timeByCategory[categoryName] || 0) + event.selfTime;
     },
-}
+};
 
 /**
  * @constructor
- * @extends {WebInspector.DeferredLayerTree}
+ * @param {!WebInspector.Target} target
  * @param {!WebInspector.TracingModel.ObjectSnapshot} snapshot
- * @param {?WebInspector.Target} target
  */
-WebInspector.DeferredTracingLayerTree = function(snapshot, target)
+WebInspector.TracingFrameLayerTree = function(target, snapshot)
 {
-    WebInspector.DeferredLayerTree.call(this, target);
+    this._target = target;
     this._snapshot = snapshot;
-}
+    /** @type {!Array<!WebInspector.LayerPaintEvent>|undefined} */
+    this._paints;
+};
 
-WebInspector.DeferredTracingLayerTree.prototype = {
+WebInspector.TracingFrameLayerTree.prototype = {
     /**
-     * @override
-     * @param {function(!WebInspector.LayerTreeBase)} callback
+     * @return {!Promise<?WebInspector.TracingLayerTree>}
      */
-    resolve: function(callback)
+    layerTreePromise: function()
     {
-        this._snapshot.requestObject(onGotObject.bind(this));
-        /**
-         * @this {WebInspector.DeferredTracingLayerTree}
-         * @param {?Object} result
-         */
-        function onGotObject(result)
-        {
+        return this._snapshot.objectPromise().then(result => {
             if (!result)
-                return;
+                return null;
             var viewport = result["device_viewport_size"];
             var tiles = result["active_tiles"];
             var rootLayer = result["active_tree"]["root_layer"];
@@ -495,11 +410,25 @@ WebInspector.DeferredTracingLayerTree.prototype = {
             var layerTree = new WebInspector.TracingLayerTree(this._target);
             layerTree.setViewportSize(viewport);
             layerTree.setTiles(tiles);
-            layerTree.setLayers(rootLayer, layers, callback.bind(null, layerTree));
-        }
+            return new Promise(resolve => layerTree.setLayers(rootLayer, layers, this._paints || [], () => resolve(layerTree)));
+        });
     },
 
-    __proto__: WebInspector.DeferredLayerTree.prototype
+    /**
+     * @return {!Array<!WebInspector.LayerPaintEvent>}
+     */
+    paints: function()
+    {
+        return this._paints || [];
+    },
+
+    /**
+     * @param {!Array<!WebInspector.LayerPaintEvent>} paints
+     */
+    _setPaints: function(paints)
+    {
+        this._paints = paints;
+    }
 };
 
 
@@ -517,13 +446,13 @@ WebInspector.TimelineFrame = function(startTime, startTimeOffset)
     this.timeByCategory = {};
     this.cpuTime = 0;
     this.idle = false;
-    /** @type {?WebInspector.DeferredLayerTree} */
+    /** @type {?WebInspector.TracingFrameLayerTree} */
     this.layerTree = null;
     /** @type {!Array.<!WebInspector.LayerPaintEvent>} */
-    this.paints = [];
+    this._paints = [];
     /** @type {number|undefined} */
     this._mainFrameId = undefined;
-}
+};
 
 WebInspector.TimelineFrame.prototype = {
     /**
@@ -545,7 +474,7 @@ WebInspector.TimelineFrame.prototype = {
     },
 
     /**
-     * @param {?WebInspector.DeferredLayerTree} layerTree
+     * @param {?WebInspector.TracingFrameLayerTree} layerTree
      */
     _setLayerTree: function(layerTree)
     {
@@ -570,7 +499,7 @@ WebInspector.TimelineFrame.prototype = {
         this.timeByCategory[category] = (this.timeByCategory[category] || 0) + time;
         this.cpuTime += time;
     },
-}
+};
 
 /**
  * @constructor
@@ -581,7 +510,7 @@ WebInspector.LayerPaintEvent = function(event, target)
 {
     this._event = event;
     this._target = target;
-}
+};
 
 WebInspector.LayerPaintEvent.prototype = {
     /**
@@ -601,44 +530,29 @@ WebInspector.LayerPaintEvent.prototype = {
     },
 
     /**
-     * @param {function(?Array.<number>, ?string)} callback
+     * @return {!Promise<?{rect: !Array<number>, serializedPicture: string}>}
      */
-    loadPicture: function(callback)
+    picturePromise: function()
     {
-        this._event.picture.requestObject(onGotObject);
-        /**
-         * @param {?Object} result
-         */
-        function onGotObject(result)
-        {
-            if (!result || !result["skp64"]) {
-                callback(null, null);
-                return;
-            }
+        return this._event.picture.objectPromise().then(result => {
+            if (!result)
+                return null;
             var rect = result["params"] && result["params"]["layer_rect"];
-            callback(rect, result["skp64"]);
-        }
+            var picture = result["skp64"];
+            return rect && picture ? {rect: rect, serializedPicture: picture} : null;
+        });
     },
 
     /**
-     * @param {function(?Array.<number>, ?WebInspector.PaintProfilerSnapshot)} callback
+     * @return !Promise<?{rect: !Array<number>, snapshot: !WebInspector.PaintProfilerSnapshot}>}
      */
-    loadSnapshot: function(callback)
+    snapshotPromise: function()
     {
-        this.loadPicture(onGotPicture.bind(this));
-        /**
-         * @param {?Array.<number>} rect
-         * @param {?string} picture
-         * @this {WebInspector.LayerPaintEvent}
-         */
-        function onGotPicture(rect, picture)
-        {
-            if (!rect || !picture || !this._target) {
-                callback(null, null);
-                return;
-            }
-            WebInspector.PaintProfilerSnapshot.load(this._target, picture, callback.bind(null, rect));
-        }
+        return this.picturePromise().then(picture => {
+            if (!picture || !this._target)
+                return null;
+            return WebInspector.PaintProfilerSnapshot.load(this._target, picture.serializedPicture).then(snapshot => snapshot ? {rect: picture.rect, snapshot: snapshot} : null);
+        });
     }
 };
 
@@ -656,4 +570,4 @@ WebInspector.PendingFrame = function(triggerTime, timeByCategory)
     /** @type {number|undefined} */
     this.mainFrameId = undefined;
     this.triggerTime = triggerTime;
-}
+};

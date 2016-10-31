@@ -49,7 +49,7 @@ WebInspector.Widget = function(isWebComponent)
     this._notificationDepth = 0;
     this._invalidationsSuspended = 0;
     this._defaultFocusedChild = null;
-}
+};
 
 WebInspector.Widget.prototype = {
     markAsRoot: function()
@@ -153,6 +153,14 @@ WebInspector.Widget.prototype = {
         this._callOnVisibleChildren(this._processWasShown);
     },
 
+    _processWasDetachedFromHierarchy: function()
+    {
+        this._notify(this.wasDetachedFromHierarchy);
+        var copy = this._children.slice();
+        for (var widget of copy)
+            widget._processWasDetachedFromHierarchy();
+    },
+
     _processWillHide: function()
     {
         if (this._inNotification())
@@ -197,6 +205,10 @@ WebInspector.Widget.prototype = {
     },
 
     willHide: function()
+    {
+    },
+
+    wasDetachedFromHierarchy: function()
     {
     },
 
@@ -338,6 +350,7 @@ WebInspector.Widget.prototype = {
             this._parentWidget.childWasDetached(this);
             var parent = this._parentWidget;
             this._parentWidget = null;
+            this._processWasDetachedFromHierarchy();
         } else {
             WebInspector.Widget.__assert(this._isRoot, "Removing non-root widget from DOM");
         }
@@ -424,7 +437,7 @@ WebInspector.Widget.prototype = {
     },
 
     /**
-     * @param {!Element} element
+     * @param {?Element} element
      */
     setDefaultFocusedElement: function(element)
     {
@@ -442,9 +455,13 @@ WebInspector.Widget.prototype = {
 
     focus: function()
     {
+        if (!this.isShowing())
+            return;
+
         var element = this._defaultFocusedElement;
-        if (element && !element.isAncestor(this.element.ownerDocument.activeElement)) {
-            WebInspector.setCurrentFocusElement(element);
+        if (element) {
+            if (!element.hasFocus())
+                element.focus();
             return;
         }
 
@@ -466,8 +483,7 @@ WebInspector.Widget.prototype = {
      */
     hasFocus: function()
     {
-        var activeElement = this.element.ownerDocument.activeElement;
-        return activeElement && activeElement.isSelfOrDescendant(this.element);
+        return this.element.hasFocus();
     },
 
     /**
@@ -577,7 +593,7 @@ WebInspector.Widget.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 WebInspector.Widget._originalAppendChild = Element.prototype.appendChild;
 WebInspector.Widget._originalInsertBefore = Element.prototype.insertBefore;
@@ -594,7 +610,7 @@ WebInspector.Widget._incrementWidgetCounter = function(parentElement, childEleme
         parentElement.__widgetCounter = (parentElement.__widgetCounter || 0) + count;
         parentElement = parentElement.parentElementOrShadowHost();
     }
-}
+};
 
 WebInspector.Widget._decrementWidgetCounter = function(parentElement, childElement)
 {
@@ -606,7 +622,7 @@ WebInspector.Widget._decrementWidgetCounter = function(parentElement, childEleme
         parentElement.__widgetCounter -= count;
         parentElement = parentElement.parentElementOrShadowHost();
     }
-}
+};
 
 WebInspector.Widget.__assert = function(condition, message)
 {
@@ -614,7 +630,7 @@ WebInspector.Widget.__assert = function(condition, message)
         console.trace();
         throw new Error(message);
     }
-}
+};
 
 /**
  * @param {?Node} node
@@ -634,7 +650,7 @@ WebInspector.Widget.focusWidgetForNode = function(node)
         widget._parentWidget._defaultFocusedChild = widget;
         widget = widget._parentWidget;
     }
-}
+};
 
 /**
  * @constructor
@@ -721,7 +737,7 @@ WebInspector.VBoxWithResizeCallback = function(resizeCallback)
 {
     WebInspector.VBox.call(this);
     this._resizeCallback = resizeCallback;
-}
+};
 
 WebInspector.VBoxWithResizeCallback.prototype = {
     onResize: function()
@@ -730,7 +746,30 @@ WebInspector.VBoxWithResizeCallback.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
+
+/**
+ * @param {!WebInspector.Widget} widget
+ * @constructor
+ */
+WebInspector.WidgetFocusRestorer = function(widget)
+{
+    this._widget = widget;
+    this._previous = widget.element.ownerDocument.deepActiveElement();
+    widget.focus();
+};
+
+WebInspector.WidgetFocusRestorer.prototype = {
+    restore: function()
+    {
+        if (!this._widget)
+            return;
+        if (this._widget.hasFocus() && this._previous)
+            this._previous.focus();
+        this._previous = null;
+        this._widget = null;
+    }
+};
 
 /**
  * @override
@@ -742,7 +781,7 @@ Element.prototype.appendChild = function(child)
 {
     WebInspector.Widget.__assert(!child.__widget || child.parentElement === this, "Attempt to add widget via regular DOM operation.");
     return WebInspector.Widget._originalAppendChild.call(this, child);
-}
+};
 
 /**
  * @override
@@ -755,7 +794,7 @@ Element.prototype.insertBefore = function(child, anchor)
 {
     WebInspector.Widget.__assert(!child.__widget || child.parentElement === this, "Attempt to add widget via regular DOM operation.");
     return WebInspector.Widget._originalInsertBefore.call(this, child, anchor);
-}
+};
 
 /**
  * @override
@@ -767,10 +806,10 @@ Element.prototype.removeChild = function(child)
 {
     WebInspector.Widget.__assert(!child.__widgetCounter && !child.__widget, "Attempt to remove element containing widget via regular DOM operation");
     return WebInspector.Widget._originalRemoveChild.call(this, child);
-}
+};
 
 Element.prototype.removeChildren = function()
 {
     WebInspector.Widget.__assert(!this.__widgetCounter, "Attempt to remove element containing widget via regular DOM operation");
     WebInspector.Widget._originalRemoveChildren.call(this);
-}
+};

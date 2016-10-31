@@ -10,7 +10,10 @@ WebInspector.AccessibilitySidebarView = function()
 {
     WebInspector.ThrottledWidget.call(this);
     this._node = null;
+    this._axNode = null;
     this._sidebarPaneStack = WebInspector.viewManager.createStackLocation();
+    this._treeSubPane = new WebInspector.AXTreePane();
+    this._sidebarPaneStack.showView(this._treeSubPane);
     this._ariaSubPane = new WebInspector.ARIAAttributesPane();
     this._sidebarPaneStack.showView(this._ariaSubPane);
     this._axNodeSubPane = new WebInspector.AXNodeSubPane();
@@ -18,7 +21,7 @@ WebInspector.AccessibilitySidebarView = function()
     this._sidebarPaneStack.widget().show(this.element);
     WebInspector.context.addFlavorChangeListener(WebInspector.DOMNode, this._pullNode, this);
     this._pullNode();
-}
+};
 
 WebInspector.AccessibilitySidebarView.prototype = {
     /**
@@ -30,25 +33,38 @@ WebInspector.AccessibilitySidebarView.prototype = {
     },
 
     /**
+     * @param {?Array<!WebInspector.AccessibilityNode>} nodes
+     */
+    accessibilityNodeCallback: function(nodes)
+    {
+        if (!nodes)
+            return;
+
+        var currentAXNode = nodes[0];
+        if (currentAXNode.ignored)
+            this._sidebarPaneStack.removeView(this._ariaSubPane);
+        else
+            this._sidebarPaneStack.showView(this._ariaSubPane, this._axNodeSubPane);
+
+        if (this._axNodeSubPane)
+            this._axNodeSubPane.setAXNode(currentAXNode);
+        if (this._treeSubPane)
+            this._treeSubPane.setAXNodeAndAncestors(nodes);
+    },
+
+    /**
      * @override
      * @protected
      * @return {!Promise.<?>}
      */
     doUpdate: function()
     {
-        /**
-         * @param {?AccessibilityAgent.AXNode} accessibilityNode
-         * @this {WebInspector.AccessibilitySidebarView}
-         */
-        function accessibilityNodeCallback(accessibilityNode)
-        {
-            if (this._axNodeSubPane)
-                this._axNodeSubPane.setAXNode(accessibilityNode);
-        }
         var node = this.node();
+        this._treeSubPane.setNode(node);
+        this._axNodeSubPane.setNode(node);
         this._ariaSubPane.setNode(node);
-        return WebInspector.AccessibilityModel.fromTarget(node.target()).getAXNode(node.id)
-            .then(accessibilityNodeCallback.bind(this));
+        return WebInspector.AccessibilityModel.fromTarget(node.target()).getAXNodeChain(node)
+            .then((nodes) => { this.accessibilityNodeCallback(nodes); });
     },
 
     /**
@@ -58,6 +74,7 @@ WebInspector.AccessibilitySidebarView.prototype = {
     {
         WebInspector.ThrottledWidget.prototype.wasShown.call(this);
 
+        this._treeSubPane.setNode(this.node());
         this._axNodeSubPane.setNode(this.node());
         this._ariaSubPane.setNode(this.node());
 
@@ -81,8 +98,6 @@ WebInspector.AccessibilitySidebarView.prototype = {
     _pullNode: function()
     {
         this._node = WebInspector.context.flavor(WebInspector.DOMNode);
-        this._ariaSubPane.setNode(this._node);
-        this._axNodeSubPane.setNode(this._node);
         this.update();
     },
 
@@ -127,11 +142,11 @@ WebInspector.AccessibilitySubPane = function(name)
 
     this._axNode = null;
     this.registerRequiredCSS("accessibility/accessibilityNode.css");
-}
+};
 
 WebInspector.AccessibilitySubPane.prototype = {
     /**
-     * @param {?AccessibilityAgent.AXNode} axNode
+     * @param {?WebInspector.AccessibilityNode} axNode
      * @protected
      */
     setAXNode: function(axNode)
@@ -182,4 +197,4 @@ WebInspector.AccessibilitySubPane.prototype = {
     },
 
     __proto__: WebInspector.SimpleView.prototype
-}
+};

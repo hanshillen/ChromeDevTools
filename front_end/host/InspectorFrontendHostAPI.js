@@ -56,7 +56,7 @@ InspectorFrontendHostAPI.Events = {
     SetInspectedTabId: Symbol("setInspectedTabId"),
     SetUseSoftMenu: Symbol("setUseSoftMenu"),
     ShowPanel: Symbol("showPanel")
-}
+};
 
 InspectorFrontendHostAPI.EventDescriptors = [
     [InspectorFrontendHostAPI.Events.AddExtensions, "addExtensions", ["extensions"]],
@@ -290,6 +290,11 @@ InspectorFrontendHostAPI.prototype = {
     showContextMenuAtPoint: function(x, y, items, document) { },
 
     /**
+     * @param {function()} callback
+     */
+    reattach: function(callback) { },
+
+    /**
      * @return {boolean}
      */
     isUnderTest: function() { },
@@ -300,4 +305,4 @@ InspectorFrontendHostAPI.prototype = {
      * @return {boolean}
      */
     isHostedMode: function() { }
-}
+};

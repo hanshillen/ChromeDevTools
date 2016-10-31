@@ -21,7 +21,7 @@ WebInspector.ASTSourceMap = function(compiledURL, sourceMapURL, models, editCall
     this._compiledToSource = new Map();
     /** @type {!Multimap<!WebInspector.SASSSupport.TextNode, !WebInspector.SASSSupport.TextNode>} */
     this._sourceToCompiled = new Multimap();
-}
+};
 
 WebInspector.ASTSourceMap.prototype = {
     /**
@@ -62,6 +62,17 @@ WebInspector.ASTSourceMap.prototype = {
         var model = this.modelForURL(sourceURL);
         var sourceContent = model ? model.document.text.value() : "";
         return WebInspector.StaticContentProvider.fromString(sourceURL, contentType, sourceContent);
+    },
+
+    /**
+     * @override
+     * @param {string} sourceURL
+     * @return {?string}
+     */
+    embeddedContentByURL: function(sourceURL)
+    {
+        var model = this.modelForURL(sourceURL);
+        return model ? model.document.text.value() : "";
     },
 
     /**
@@ -205,4 +216,4 @@ WebInspector.ASTSourceMap.prototype = {
         }
         return newMap;
     }
-}
+};

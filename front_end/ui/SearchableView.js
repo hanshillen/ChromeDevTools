@@ -94,7 +94,6 @@ WebInspector.SearchableView = function(searchable, settingName)
     this._searchNavigationNextElement.addEventListener("click", this._onNextButtonSearch.bind(this), false);
     this._searchNavigationNextElement.title = WebInspector.UIString("Search Next");
 
-    this._searchInputElement.addEventListener("mousedown", this._onSearchFieldManualFocus.bind(this), false); // when the search field is manually selected
     this._searchInputElement.addEventListener("keydown", this._onSearchKeyDown.bind(this), true);
     this._searchInputElement.addEventListener("input", this._onInput.bind(this), false);
 
@@ -144,7 +143,7 @@ WebInspector.SearchableView = function(searchable, settingName)
     this._minimalSearchQuerySize = 3;
 
     this._loadSetting();
-}
+};
 
 WebInspector.SearchableView._lastUniqueId = 0;
 
@@ -162,7 +161,7 @@ WebInspector.SearchableView.fromElement = function(element)
         element = element.parentElementOrShadowHost();
     }
     return view;
-}
+};
 
 WebInspector.SearchableView.prototype = {
     _toggleCaseSensitiveSearch: function()
@@ -250,7 +249,7 @@ WebInspector.SearchableView.prototype = {
     closeSearch: function()
     {
         this.cancelSearch();
-        if (WebInspector.currentFocusElement() && WebInspector.currentFocusElement().isDescendant(this._footerElementContainer))
+        if (this._footerElementContainer.hasFocus())
             this.focus();
     },
 
@@ -364,7 +363,7 @@ WebInspector.SearchableView.prototype = {
             this.cancelSearch();
 
         var queryCandidate;
-        if (WebInspector.currentFocusElement() !== this._searchInputElement) {
+        if (!this._searchInputElement.hasFocus()) {
             var selection = this._searchInputElement.getComponentSelection();
             if (selection.rangeCount)
                 queryCandidate = selection.toString().replace(/\r?\n.*/, "");
@@ -387,14 +386,6 @@ WebInspector.SearchableView.prototype = {
             this._replaceCheckboxElement.checked = false;
             this._updateSecondRowVisibility();
         }
-    },
-
-    /**
-     * @param {!Event} event
-     */
-    _onSearchFieldManualFocus: function(event)
-    {
-        WebInspector.setCurrentFocusElement(/** @type {?Node} */ (event.target));
     },
 
     /**
@@ -565,14 +556,14 @@ WebInspector.SearchableView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @interface
  */
 WebInspector.Searchable = function()
 {
-}
+};
 
 WebInspector.Searchable.prototype = {
     searchCanceled: function() { },
@@ -597,14 +588,14 @@ WebInspector.Searchable.prototype = {
      * @return {boolean}
      */
     supportsRegexSearch: function() { }
-}
+};
 
 /**
  * @interface
  */
 WebInspector.Replaceable = function()
 {
-}
+};
 
 WebInspector.Replaceable.prototype = {
     /**
@@ -618,7 +609,7 @@ WebInspector.Replaceable.prototype = {
      * @param {string} replacement
      */
     replaceAllWith: function(searchConfig, replacement) { }
-}
+};
 
 /**
  * @constructor
@@ -631,7 +622,7 @@ WebInspector.SearchableView.SearchConfig = function(query, caseSensitive, isRege
     this.query = query;
     this.caseSensitive = caseSensitive;
     this.isRegex = isRegex;
-}
+};
 
 WebInspector.SearchableView.SearchConfig.prototype = {
     /**
@@ -663,4 +654,4 @@ WebInspector.SearchableView.SearchConfig.prototype = {
 
         return regex;
     }
-}
+};

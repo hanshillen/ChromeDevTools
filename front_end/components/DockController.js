@@ -54,13 +54,13 @@ WebInspector.DockController = function(canDock)
         this._currentDockStateSetting.set("right");
     if (this._states.indexOf(this._lastDockStateSetting.get()) === -1)
         this._currentDockStateSetting.set("bottom");
-}
+};
 
 WebInspector.DockController.State = {
     DockedToBottom: "bottom",
     DockedToRight: "right",
     Undocked: "undocked"
-}
+};
 
 // Use BeforeDockSideChanged to do something before all the UI bits are updated,
 // DockSideChanged to update UI, and AfterDockSideChanged to perform actions
@@ -71,7 +71,7 @@ WebInspector.DockController.Events = {
     BeforeDockSideChanged: Symbol("BeforeDockSideChanged"),
     DockSideChanged: Symbol("DockSideChanged"),
     AfterDockSideChanged: Symbol("AfterDockSideChanged")
-}
+};
 
 WebInspector.DockController.prototype = {
     initialize: function()
@@ -114,6 +114,7 @@ WebInspector.DockController.prototype = {
 
     /**
      * @param {string} dockSide
+     * @suppressGlobalPropertiesCheck
      */
     setDockSide: function(dockSide)
     {
@@ -126,7 +127,7 @@ WebInspector.DockController.prototype = {
         if (this._dockSide)
             this._lastDockStateSetting.set(this._dockSide);
 
-        WebInspector.DockController._previousFocusedElement = WebInspector.currentFocusElement();
+        this._savedFocus = document.deepActiveElement();
         var eventData = { from: this._dockSide, to: dockSide };
         this.dispatchEventToListeners(WebInspector.DockController.Events.BeforeDockSideChanged, eventData);
         console.timeStamp("DockController.setIsDocked");
@@ -143,10 +144,10 @@ WebInspector.DockController.prototype = {
     _setIsDockedResponse: function(eventData)
     {
         this.dispatchEventToListeners(WebInspector.DockController.Events.AfterDockSideChanged, eventData);
-
-        if (WebInspector.DockController._previousFocusedElement)
-            WebInspector.DockController._previousFocusedElement.focus();
-        delete WebInspector.DockController._previousFocusedElement;
+        if (this._savedFocus) {
+            this._savedFocus.focus();
+            this._savedFocus = null;
+        }
     },
 
     /**
@@ -185,7 +186,7 @@ WebInspector.DockController.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -193,7 +194,7 @@ WebInspector.DockController.prototype = {
  */
 WebInspector.DockController.ToggleDockActionDelegate = function()
 {
-}
+};
 
 WebInspector.DockController.ToggleDockActionDelegate.prototype = {
     /**
@@ -207,7 +208,7 @@ WebInspector.DockController.ToggleDockActionDelegate.prototype = {
         WebInspector.dockController._toggleDockSide();
         return true;
     }
-}
+};
 
 /**
  * @constructor
@@ -215,7 +216,7 @@ WebInspector.DockController.ToggleDockActionDelegate.prototype = {
  */
 WebInspector.DockController.CloseButtonProvider = function()
 {
-}
+};
 
 WebInspector.DockController.CloseButtonProvider.prototype = {
     /**
@@ -226,7 +227,7 @@ WebInspector.DockController.CloseButtonProvider.prototype = {
     {
         return WebInspector.dockController._closeButton;
     }
-}
+};
 
 /**
  * @type {!WebInspector.DockController}

@@ -92,7 +92,7 @@ WebInspector.NetworkRequest = function(target, requestId, url, documentURL, fram
 
     /** @type {string} */
     this.connectionId = "0";
-}
+};
 
 /** @enum {symbol} */
 WebInspector.NetworkRequest.Events = {
@@ -103,7 +103,7 @@ WebInspector.NetworkRequest.Events = {
     ResponseHeadersChanged: Symbol("ResponseHeadersChanged"),
     WebsocketFrameAdded: Symbol("WebsocketFrameAdded"),
     EventSourceMessageAdded: Symbol("EventSourceMessageAdded")
-}
+};
 
 /** @enum {string} */
 WebInspector.NetworkRequest.InitiatorType = {
@@ -111,7 +111,7 @@ WebInspector.NetworkRequest.InitiatorType = {
     Parser: "parser",
     Redirect: "redirect",
     Script: "script"
-}
+};
 
 /** @typedef {!{name: string, value: string}} */
 WebInspector.NetworkRequest.NameValue;
@@ -121,7 +121,7 @@ WebInspector.NetworkRequest.WebSocketFrameType = {
     Send: "send",
     Receive: "receive",
     Error: "error"
-}
+};
 
 /** @typedef {!{type: WebInspector.NetworkRequest.WebSocketFrameType, time: number, text: string, opCode: number, mask: boolean}} */
 WebInspector.NetworkRequest.WebSocketFrame;
@@ -801,6 +801,14 @@ WebInspector.NetworkRequest.prototype = {
     },
 
     /**
+     * @return {string|undefined}
+     */
+    responseLastModified: function()
+    {
+        return this.responseHeaderValue("last-modified");
+    },
+
+    /**
      * @return {?Array.<!WebInspector.ServerTiming>}
      */
     get serverTimings()
@@ -1049,7 +1057,19 @@ WebInspector.NetworkRequest.prototype = {
      */
     populateImageSource: function(image)
     {
-        WebInspector.Resource.populateImageSource(this._url, this._mimeType, this, image);
+        /**
+         * @param {?string} content
+         * @this {WebInspector.NetworkRequest}
+         */
+        function onResourceContent(content)
+        {
+            var imageSrc = WebInspector.ContentProvider.contentAsDataURL(content, this._mimeType, true);
+            if (imageSrc === null)
+                imageSrc = this._url;
+            image.src = imageSrc;
+        }
+
+        this.requestContent().then(onResourceContent.bind(this));
     },
 
     /**
@@ -1063,7 +1083,7 @@ WebInspector.NetworkRequest.prototype = {
             content = content.toBase64();
             charset = "utf-8";
         }
-        return WebInspector.Resource.contentAsDataURL(content, this.mimeType, true, charset);
+        return WebInspector.ContentProvider.contentAsDataURL(content, this.mimeType, true, charset);
     },
 
     _innerRequestContent: function()
@@ -1248,4 +1268,4 @@ WebInspector.NetworkRequest.prototype = {
     },
 
     __proto__: WebInspector.SDKObject.prototype
-}
+};

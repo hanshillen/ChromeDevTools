@@ -43,10 +43,7 @@ WebInspector.TimelineGrid = function()
     this._eventDividersElement = this._gridHeaderElement.createChild("div", "resources-event-dividers");
     this._dividersLabelBarElement = this._gridHeaderElement.createChild("div", "resources-dividers-label-bar");
     this.element.appendChild(this._gridHeaderElement);
-
-    this._leftCurtainElement = this.element.createChild("div", "timeline-curtain-left");
-    this._rightCurtainElement = this.element.createChild("div", "timeline-curtain-right");
-}
+};
 
 /**
  * @param {!WebInspector.TimelineGrid.Calculator} calculator
@@ -55,6 +52,7 @@ WebInspector.TimelineGrid = function()
  */
 WebInspector.TimelineGrid.calculateDividerOffsets = function(calculator, freeZoneAtLeft)
 {
+    // TODO(allada) Remove this code out when timeline canvas experiment is over.
     /** @const */ var minGridSlicePx = 64; // minimal distance between grid lines.
 
     var clientWidth = calculator.computePosition(calculator.maximumBoundary());
@@ -94,28 +92,23 @@ WebInspector.TimelineGrid.calculateDividerOffsets = function(calculator, freeZon
     }
 
     return {offsets: offsets, precision: Math.max(0, -Math.floor(Math.log(gridSliceTime * 1.01) / Math.LN10))};
-}
+};
 
 /**
- * @param {!Object} canvas
+ * @param {!HTMLCanvasElement} canvas
  * @param {!WebInspector.TimelineGrid.Calculator} calculator
- * @param {?Array.<number>=} dividerOffsets
  */
-WebInspector.TimelineGrid.drawCanvasGrid = function(canvas, calculator, dividerOffsets)
+WebInspector.TimelineGrid.drawCanvasGrid = function(canvas, calculator)
 {
     var context = canvas.getContext("2d");
     context.save();
     var ratio = window.devicePixelRatio;
     context.scale(ratio, ratio);
-    var printDeltas = !!dividerOffsets;
     var width = canvas.width / window.devicePixelRatio;
     var height = canvas.height / window.devicePixelRatio;
-    var precision = 0;
-    if (!dividerOffsets) {
-        var dividersData = WebInspector.TimelineGrid.calculateDividerOffsets(calculator);
-        dividerOffsets = dividersData.offsets;
-        precision = dividersData.precision;
-    }
+    var dividersData = WebInspector.TimelineGrid.calculateDividerOffsets(calculator);
+    var dividerOffsets = dividersData.offsets;
+    var precision = dividersData.precision;
 
     context.fillStyle = "rgba(255, 255, 255, 0.5)";
     context.fillRect(0, 0, width, 15);
@@ -123,34 +116,25 @@ WebInspector.TimelineGrid.drawCanvasGrid = function(canvas, calculator, dividerO
     context.fillStyle = "#333";
     context.strokeStyle = "rgba(0, 0, 0, 0.1)";
     context.textBaseline = "hanging";
-    context.font = (printDeltas ? "italic bold 11px " : " 11px ") + WebInspector.fontFamily();
+    context.font = "11px " + WebInspector.fontFamily();
     context.lineWidth = 1;
 
     context.translate(0.5, 0.5);
-    const minWidthForTitle = 60;
-    var lastPosition = 0;
-    var time = 0;
-    var lastTime = 0;
-    var paddingRight = 4;
-    var paddingTop = 3;
+    const paddingRight = 4;
+    const paddingTop = 3;
     for (var i = 0; i < dividerOffsets.length; ++i) {
-        time = dividerOffsets[i];
+        var time = dividerOffsets[i];
         var position = calculator.computePosition(time);
-        context.beginPath();
-        if (!printDeltas || i !== 0 && position - lastPosition > minWidthForTitle) {
-            var text = printDeltas ? calculator.formatValue(calculator.zeroTime() + time - lastTime) : calculator.formatValue(time, precision);
-            var textWidth = context.measureText(text).width;
-            var textPosition = printDeltas ? (position + lastPosition - textWidth) / 2 : position - textWidth - paddingRight;
-            context.fillText(text, textPosition, paddingTop);
-        }
+        var text = calculator.formatValue(time, precision);
+        var textWidth = context.measureText(text).width;
+        var textPosition = position - textWidth - paddingRight;
+        context.fillText(text, textPosition, paddingTop);
         context.moveTo(position, 0);
         context.lineTo(position, height);
-        context.stroke();
-        lastTime = time;
-        lastPosition = position;
     }
+    context.stroke();
     context.restore();
-}
+};
 
 WebInspector.TimelineGrid.prototype = {
     get dividersElement()
@@ -271,24 +255,6 @@ WebInspector.TimelineGrid.prototype = {
         this._dividersElement.classList.remove("hidden");
     },
 
-    hideCurtains: function()
-    {
-        this._leftCurtainElement.classList.add("hidden");
-        this._rightCurtainElement.classList.add("hidden");
-    },
-
-    /**
-     * @param {number} left
-     * @param {number} right
-     */
-    showCurtains: function(left, right)
-    {
-        this._leftCurtainElement.style.width = (100 * left).toFixed(2) + "%";
-        this._leftCurtainElement.classList.remove("hidden");
-        this._rightCurtainElement.style.width = (100 * (1 - right)).toFixed(2) + "%";
-        this._rightCurtainElement.classList.remove("hidden");
-    },
-
     /**
      * @param {number} scrollTop
      */
@@ -296,15 +262,13 @@ WebInspector.TimelineGrid.prototype = {
     {
         this._dividersLabelBarElement.style.top = scrollTop + "px";
         this._eventDividersElement.style.top = scrollTop + "px";
-        this._leftCurtainElement.style.top = scrollTop + "px";
-        this._rightCurtainElement.style.top = scrollTop + "px";
     }
-}
+};
 
 /**
  * @interface
  */
-WebInspector.TimelineGrid.Calculator = function() { }
+WebInspector.TimelineGrid.Calculator = function() { };
 
 WebInspector.TimelineGrid.Calculator.prototype = {
     /**
@@ -336,4 +300,4 @@ WebInspector.TimelineGrid.Calculator.prototype = {
 
     /** @return {number} */
     boundarySpan: function() { }
-}
+};

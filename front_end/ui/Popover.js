@@ -45,7 +45,7 @@ WebInspector.Popover = function(popoverHelper)
 
     this._popoverHelper = popoverHelper;
     this._hideBound = this.hide.bind(this);
-}
+};
 
 WebInspector.Popover._classNamePrefix = "popover";
 
@@ -147,12 +147,12 @@ WebInspector.Popover.prototype = {
     },
 
     /**
-     * @param {boolean} noMargins
+     * @param {boolean} noPadding
      */
-    setNoMargins: function(noMargins)
+    setNoPadding: function(noPadding)
     {
-        this._hasNoMargins = noMargins;
-        this._contentDiv.classList.toggle("no-margin", this._hasNoMargins);
+        this._hasNoPadding = noPadding;
+        this._contentDiv.classList.toggle("no-padding", this._hasNoPadding);
     },
 
     /**
@@ -163,9 +163,9 @@ WebInspector.Popover.prototype = {
      */
     positionElement: function(anchorElement, preferredWidth, preferredHeight, arrowDirection)
     {
-        const borderWidth = this._hasNoMargins ? 0 : 8;
+        const borderWidth = this._hasNoPadding ? 0 : 8;
         const scrollerWidth = this._hasFixedHeight ? 0 : 14;
-        const arrowHeight = this._hasNoMargins ? 8 : 15;
+        const arrowHeight = this._hasNoPadding ? 8 : 15;
         const arrowOffset = 10;
         const borderRadius = 4;
         const arrowRadius = 6;
@@ -249,29 +249,35 @@ WebInspector.Popover.prototype = {
     },
 
     __proto__: WebInspector.Widget.prototype
-}
+};
 
 /**
  * @constructor
  * @param {!Element} panelElement
- * @param {function(!Element, !Event):(!Element|!AnchorBox|undefined)} getAnchor
- * @param {function(!Element, !WebInspector.Popover):undefined} showPopover
- * @param {function()=} onHide
  * @param {boolean=} disableOnClick
  */
-WebInspector.PopoverHelper = function(panelElement, getAnchor, showPopover, onHide, disableOnClick)
+WebInspector.PopoverHelper = function(panelElement, disableOnClick)
 {
-    this._getAnchor = getAnchor;
-    this._showPopover = showPopover;
-    this._onHide = onHide;
     this._disableOnClick = !!disableOnClick;
     panelElement.addEventListener("mousedown", this._mouseDown.bind(this), false);
     panelElement.addEventListener("mousemove", this._mouseMove.bind(this), false);
     panelElement.addEventListener("mouseout", this._mouseOut.bind(this), false);
     this.setTimeout(1000, 500);
-}
+};
 
 WebInspector.PopoverHelper.prototype = {
+    /**
+     * @param {function(!Element, !Event):(!Element|!AnchorBox|undefined)} getAnchor
+     * @param {function(!Element, !WebInspector.Popover):undefined} showPopover
+     * @param {function()=} onHide
+     */
+    initializeCallbacks:function(getAnchor, showPopover, onHide)
+    {
+        this._getAnchor = getAnchor;
+        this._showPopover = showPopover;
+        this._onHide = onHide;
+    },
+
     /**
      * @param {number} timeout
      * @param {number=} hideTimeout
@@ -418,10 +424,10 @@ WebInspector.PopoverHelper.prototype = {
             this._resetHoverTimer();
         }
     }
-}
+};
 
 /** @enum {string} */
 WebInspector.Popover.Orientation = {
     Top: "top",
     Bottom: "bottom"
-}
+};

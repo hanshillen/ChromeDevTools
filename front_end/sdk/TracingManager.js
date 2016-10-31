@@ -9,7 +9,7 @@
  */
 WebInspector.TracingManagerClient = function()
 {
-}
+};
 
 WebInspector.TracingManagerClient.prototype = {
     tracingStarted: function() { },
@@ -26,7 +26,7 @@ WebInspector.TracingManagerClient.prototype = {
      * @param {number} progress
      */
     eventsRetrievalProgress: function(progress) { }
-}
+};
 
 /**
  * @constructor
@@ -41,7 +41,7 @@ WebInspector.TracingManager = function(target)
     this._activeClient = null;
     this._eventBufferSize = 0;
     this._eventsRetrieved = 0;
-}
+};
 
 /** @typedef {!{
         cat: string,
@@ -53,6 +53,8 @@ WebInspector.TracingManager = function(target)
         args: !Object,
         dur: number,
         id: string,
+        id2: (!{global: (string|undefined), local: (string|undefined)}|undefined),
+        scope: string,
         bind_id: string,
         s: string
     }}
@@ -132,7 +134,7 @@ WebInspector.TracingManager.prototype = {
         this._finishing = true;
         this._target.tracingAgent().end();
     }
-}
+};
 
 /**
  * @constructor
@@ -142,7 +144,7 @@ WebInspector.TracingManager.prototype = {
 WebInspector.TracingDispatcher = function(tracingManager)
 {
     this._tracingManager = tracingManager;
-}
+};
 
 WebInspector.TracingDispatcher.prototype = {
     /**
@@ -172,4 +174,4 @@ WebInspector.TracingDispatcher.prototype = {
     {
         this._tracingManager._tracingComplete();
     }
-}
+};

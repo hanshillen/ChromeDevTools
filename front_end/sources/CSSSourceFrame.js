@@ -43,7 +43,11 @@ WebInspector.CSSSourceFrame = function(uiSourceCode)
         suggestionsCallback: this._cssSuggestions.bind(this),
         isWordChar: this._isWordChar.bind(this)
     });
-}
+    this.textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.ScrollChanged, () => {
+        if (this._swatchPopoverHelper.isShowing())
+            this._swatchPopoverHelper.hide(true);
+    });
+};
 
 /** @type {number} */
 WebInspector.CSSSourceFrame.maxSwatchProcessingLength = 300;
@@ -318,17 +322,6 @@ WebInspector.CSSSourceFrame.prototype = {
     },
 
     /**
-     * @override
-     * @param {number} lineNumber
-     */
-    scrollChanged: function(lineNumber)
-    {
-        WebInspector.UISourceCodeFrame.prototype.scrollChanged.call(this, lineNumber);
-        if (this._swatchPopoverHelper.isShowing())
-            this._swatchPopoverHelper.hide(true);
-    },
-
-    /**
      * @param {string} char
      * @return {boolean}
      */
@@ -391,4 +384,4 @@ WebInspector.CSSSourceFrame.prototype = {
     },
 
     __proto__: WebInspector.UISourceCodeFrame.prototype
-}
+};

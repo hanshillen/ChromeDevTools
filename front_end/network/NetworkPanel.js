@@ -82,7 +82,7 @@ WebInspector.NetworkPanel = function()
     this._detailsWidget.element.classList.add("network-details-view");
     this._splitWidget.setMainWidget(this._detailsWidget);
 
-    this._closeButtonElement = createElementWithClass("div", "network-close-button", "dt-close-button");
+    this._closeButtonElement = createElement("div", "dt-close-button");
     this._closeButtonElement.addEventListener("click", this._showRequest.bind(this, null), false);
 
     this._networkLogShowOverviewSetting.addChangeListener(this._toggleShowOverview, this);
@@ -103,7 +103,9 @@ WebInspector.NetworkPanel = function()
     this._networkLogView.addEventListener(WebInspector.NetworkLogView.Events.UpdateRequest, this._onUpdateRequest, this);
 
     WebInspector.DataSaverInfobar.maybeShowInPanel(this);
-}
+};
+
+WebInspector.NetworkPanel.displayScreenshotDelay = 1000;
 
 WebInspector.NetworkPanel.prototype = {
     /**
@@ -273,7 +275,13 @@ WebInspector.NetworkPanel.prototype = {
     _load: function(event)
     {
         if (this._filmStripRecorder && this._filmStripRecorder.isRecording())
-            this._pendingStopTimer = setTimeout(this._toggleRecord.bind(this, false), 1000);
+            this._pendingStopTimer = setTimeout(this._stopFilmStripRecording.bind(this), WebInspector.NetworkPanel.displayScreenshotDelay);
+    },
+
+    _stopFilmStripRecording: function()
+    {
+        this._filmStripRecorder.stopRecording(this._filmStripAvailable.bind(this));
+        delete this._pendingStopTimer;
     },
 
     _toggleLargerRequests: function()
@@ -419,7 +427,7 @@ WebInspector.NetworkPanel.prototype = {
 
         if (request) {
             this._networkItemView = new WebInspector.NetworkItemView(request, this._networkLogView.timeCalculator());
-            this._networkItemView.insertBeforeTabStrip(this._closeButtonElement);
+            this._networkItemView.leftToolbar().appendToolbarItem(new WebInspector.ToolbarItem(this._closeButtonElement));
             this._networkItemView.show(this._detailsWidget.element);
             this._splitWidget.showBoth();
         } else {
@@ -502,8 +510,7 @@ WebInspector.NetworkPanel.prototype = {
          */
         function reveal(request)
         {
-            WebInspector.inspectorView.setCurrentPanel(this);
-            this.revealAndHighlightRequest(request);
+            WebInspector.viewManager.showView("network").then(this.revealAndHighlightRequest.bind(this, request));
         }
 
         /**
@@ -525,7 +532,7 @@ WebInspector.NetworkPanel.prototype = {
         }
         if (target instanceof WebInspector.UISourceCode) {
             var uiSourceCode = /** @type {!WebInspector.UISourceCode} */ (target);
-            var resource = WebInspector.resourceForURL(WebInspector.networkMapping.networkURL(uiSourceCode));
+            var resource = WebInspector.resourceForURL(uiSourceCode.url());
             if (resource && resource.request)
                 appendRevealItem.call(this, resource.request);
             return;
@@ -582,7 +589,7 @@ WebInspector.NetworkPanel.prototype = {
     },
 
     __proto__: WebInspector.Panel.prototype
-}
+};
 
 /**
  * @constructor
@@ -590,7 +597,7 @@ WebInspector.NetworkPanel.prototype = {
  */
 WebInspector.NetworkPanel.ContextMenuProvider = function()
 {
-}
+};
 
 WebInspector.NetworkPanel.ContextMenuProvider.prototype = {
     /**
@@ -603,7 +610,7 @@ WebInspector.NetworkPanel.ContextMenuProvider.prototype = {
     {
         WebInspector.NetworkPanel._instance().appendApplicableItems(event, contextMenu, target);
     }
-}
+};
 
 /**
  * @constructor
@@ -611,7 +618,7 @@ WebInspector.NetworkPanel.ContextMenuProvider.prototype = {
  */
 WebInspector.NetworkPanel.RequestRevealer = function()
 {
-}
+};
 
 WebInspector.NetworkPanel.RequestRevealer.prototype = {
     /**
@@ -624,17 +631,9 @@ WebInspector.NetworkPanel.RequestRevealer.prototype = {
         if (!(request instanceof WebInspector.NetworkRequest))
             return Promise.reject(new Error("Internal error: not a network request"));
         var panel = WebInspector.NetworkPanel._instance();
-        WebInspector.inspectorView.setCurrentPanel(panel);
-        panel.revealAndHighlightRequest(request);
-        return Promise.resolve();
+        return WebInspector.viewManager.showView("network").then(panel.revealAndHighlightRequest.bind(panel, request));
     }
-}
-
-
-WebInspector.NetworkPanel.show = function()
-{
-    WebInspector.inspectorView.setCurrentPanel(WebInspector.NetworkPanel._instance());
-}
+};
 
 /**
  * @param {!Array<{filterType: !WebInspector.NetworkLogView.FilterType, filterValue: string}>} filters
@@ -646,8 +645,8 @@ WebInspector.NetworkPanel.revealAndFilter = function(filters)
     for (var filter of filters)
         filterString += `${filter.filterType}:${filter.filterValue} `;
     panel._networkLogView.setTextFilterValue(filterString);
-    WebInspector.inspectorView.setCurrentPanel(panel);
-}
+    WebInspector.viewManager.showView("network");
+};
 
 /**
  * @return {!WebInspector.NetworkPanel}
@@ -655,7 +654,7 @@ WebInspector.NetworkPanel.revealAndFilter = function(filters)
 WebInspector.NetworkPanel._instance = function()
 {
     return /** @type {!WebInspector.NetworkPanel} */ (self.runtime.sharedInstance(WebInspector.NetworkPanel));
-}
+};
 
 /**
  * @constructor
@@ -667,7 +666,7 @@ WebInspector.NetworkPanel.FilmStripRecorder = function(timeCalculator, filmStrip
 {
     this._timeCalculator = timeCalculator;
     this._filmStripView = filmStripView;
-}
+};
 
 WebInspector.NetworkPanel.FilmStripRecorder.prototype = {
     /**
@@ -752,7 +751,7 @@ WebInspector.NetworkPanel.FilmStripRecorder.prototype = {
         this._callback = callback;
         this._filmStripView.setStatusText(WebInspector.UIString("Fetching frames..."));
     }
-}
+};
 
 /**
  * @constructor
@@ -760,7 +759,7 @@ WebInspector.NetworkPanel.FilmStripRecorder.prototype = {
  */
 WebInspector.NetworkPanel.RecordActionDelegate = function()
 {
-}
+};
 WebInspector.NetworkPanel.RecordActionDelegate.prototype = {
     /**
      * @override
@@ -775,4 +774,4 @@ WebInspector.NetworkPanel.RecordActionDelegate.prototype = {
         panel._toggleRecording();
         return true;
     }
-}
+};

@@ -49,7 +49,9 @@ WebInspector.SourceFrame = function(url, lazyContent)
     this._currentSearchResultIndex = -1;
     this._searchResults = [];
 
-    this._textEditor.setReadOnly(!this.canEditSource());
+    this._textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.EditorFocused, this._resetCurrentSearchResultIndex, this);
+    this._textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.SelectionChanged, this._updateSourcePosition, this);
+    this._textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.TextChanged, event => this.onTextChanged(event.data.oldRange, event.data.newRange));
 
     this._shortcuts = {};
     this.element.addEventListener("keydown", this._handleKeyDown.bind(this), false);
@@ -60,16 +62,19 @@ WebInspector.SourceFrame = function(url, lazyContent)
      * @type {?WebInspector.SearchableView}
      */
     this._searchableView = null;
-}
-
-/** @enum {symbol} */
-WebInspector.SourceFrame.Events = {
-    ScrollChanged: Symbol("ScrollChanged"),
-    SelectionChanged: Symbol("SelectionChanged"),
-    JumpHappened: Symbol("JumpHappened")
-}
+    this._editable = false;
+};
 
 WebInspector.SourceFrame.prototype = {
+    /**
+     * @param {boolean} editable
+     */
+    setEditable: function(editable)
+    {
+        this._editable = editable;
+        this._textEditor.setReadOnly(editable);
+    },
+
     /**
      * @param {number} key
      * @param {function():boolean} handler
@@ -226,7 +231,6 @@ WebInspector.SourceFrame.prototype = {
     },
 
     /**
-     * @override
      * @param {!WebInspector.TextRange} oldRange
      * @param {!WebInspector.TextRange} newRange
      */
@@ -350,26 +354,11 @@ WebInspector.SourceFrame.prototype = {
         this._resetSearch();
         this._searchConfig = searchConfig;
         if (this.loaded)
-            this._doFindSearchMatches(searchConfig, shouldJump, !!jumpBackwards)
+            this._doFindSearchMatches(searchConfig, shouldJump, !!jumpBackwards);
         else
             this._delayedFindSearchMatches = this._doFindSearchMatches.bind(this, searchConfig, shouldJump, !!jumpBackwards);
 
         this._ensureContentLoaded();
-    },
-
-    /**
-     * @override
-     */
-    editorFocused: function()
-    {
-        this._resetCurrentSearchResultIndex();
-    },
-
-    /**
-     * @override
-     */
-    editorBlurred: function()
-    {
     },
 
     _resetCurrentSearchResultIndex: function()
@@ -584,34 +573,11 @@ WebInspector.SourceFrame.prototype = {
     },
 
     /**
-     * @override
-     * @param {?WebInspector.TextRange} from
-     * @param {?WebInspector.TextRange} to
-     */
-    onJumpToPosition: function(from, to)
-    {
-        this.dispatchEventToListeners(WebInspector.SourceFrame.Events.JumpHappened, {
-            from: from,
-            to: to
-        });
-    },
-
-    /**
      * @return {boolean}
      */
     canEditSource: function()
     {
-        return false;
-    },
-
-    /**
-     * @override
-     * @param {!WebInspector.TextRange} textRange
-     */
-    selectionChanged: function(textRange)
-    {
-        this._updateSourcePosition();
-        this.dispatchEventToListeners(WebInspector.SourceFrame.Events.SelectionChanged, textRange);
+        return this._editable;
     },
 
     _updateSourcePosition: function()
@@ -637,17 +603,6 @@ WebInspector.SourceFrame.prototype = {
             this._sourcePosition.setText(WebInspector.UIString("%d lines, %d characters selected", textRange.endLine - textRange.startLine + 1, selectedText.length));
     },
 
-    /**
-     * @override
-     * @param {number} lineNumber
-     */
-    scrollChanged: function(lineNumber)
-    {
-        if (this._scrollTimer)
-            clearTimeout(this._scrollTimer);
-        this._scrollTimer = setTimeout(this.dispatchEventToListeners.bind(this, WebInspector.SourceFrame.Events.ScrollChanged, lineNumber), 100);
-    },
-
     _handleKeyDown: function(e)
     {
         var shortcutKey = WebInspector.KeyboardShortcut.makeKeyFromEvent(e);
@@ -657,4 +612,4 @@ WebInspector.SourceFrame.prototype = {
     },
 
     __proto__: WebInspector.SimpleView.prototype
-}
+};

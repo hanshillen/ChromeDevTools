@@ -34,7 +34,7 @@ WebInspector.SourcesSearchScope = function()
 {
     // FIXME: Add title once it is used by search controller.
     this._searchId = 0;
-}
+};
 
 /**
  * @param {!WebInspector.UISourceCode} uiSourceCode1
@@ -47,14 +47,14 @@ WebInspector.SourcesSearchScope._filesComparator = function(uiSourceCode1, uiSou
         return -1;
     if (!uiSourceCode1.isDirty() && uiSourceCode2.isDirty())
         return 1;
-    var networkURL1 = WebInspector.networkMapping.networkURL(uiSourceCode1);
-    var networkURL2 = WebInspector.networkMapping.networkURL(uiSourceCode2);
-    if (networkURL1 && !networkURL2)
+    var url1 = uiSourceCode1.url();
+    var url2 = uiSourceCode2.url();
+    if (url1 && !url2)
         return -1;
-    if (!networkURL1 && networkURL2)
+    if (!url1 && url2)
         return 1;
     return String.naturalOrderComparator(uiSourceCode1.fullDisplayName(), uiSourceCode2.fullDisplayName());
-}
+};
 
 
 WebInspector.SourcesSearchScope.prototype = {
@@ -145,6 +145,9 @@ WebInspector.SourcesSearchScope.prototype = {
         var uiSourceCodes = project.uiSourceCodes();
         for (var i = 0; i < uiSourceCodes.length; ++i) {
             var uiSourceCode = uiSourceCodes[i];
+            var binding = WebInspector.persistence.binding(uiSourceCode);
+            if (binding && binding.fileSystem === uiSourceCode)
+                continue;
             if (dirtyOnly && !uiSourceCode.isDirty())
                 continue;
             if (this._searchConfig.filePathMatchesFileQuery(uiSourceCode.fullDisplayName()))
@@ -308,4 +311,4 @@ WebInspector.SourcesSearchScope.prototype = {
     {
         return new WebInspector.FileBasedSearchResultsPane(searchConfig);
     }
-}
+};

@@ -41,12 +41,13 @@ WebInspector.SettingsScreen = function()
     this.contentElement.tabIndex = 0;
     this.contentElement.classList.add("help-window-main");
     this.contentElement.classList.add("vbox");
-    var settingsLabelElement = createElementWithClass("div", "help-window-label");
-    settingsLabelElement.createTextChild(WebInspector.UIString("Settings"));
+
+    var settingsLabelElement = createElement("div");
+    WebInspector.createShadowRootWithCoreStyles(settingsLabelElement, "settings/settingsScreen.css").createChild("div", "settings-window-title").textContent = WebInspector.UIString("Settings");
 
     this._tabbedLocation = WebInspector.viewManager.createTabbedLocation(() => WebInspector.SettingsScreen._showSettingsScreen(), "settings-view");
     var tabbedPane = this._tabbedLocation.tabbedPane();
-    tabbedPane.insertBeforeTabStrip(settingsLabelElement);
+    tabbedPane.leftToolbar().appendToolbarItem(new WebInspector.ToolbarItem(settingsLabelElement));
     tabbedPane.setShrinkableTabs(false);
     tabbedPane.setVerticalTabLayout(true);
     var shortcutsView = new WebInspector.SimpleView(WebInspector.UIString("Shortcuts"));
@@ -57,7 +58,7 @@ WebInspector.SettingsScreen = function()
     this.element.addEventListener("keydown", this._keyDown.bind(this), false);
     this._developerModeCounter = 0;
     this.setDefaultFocusedElement(this.contentElement);
-}
+};
 
 /**
  * @param {string=} name
@@ -72,7 +73,7 @@ WebInspector.SettingsScreen._showSettingsScreen = function(name)
     settingsScreen.show(dialog.element);
     dialog.show();
     settingsScreen._selectTab(name || "preferences");
-}
+};
 
 WebInspector.SettingsScreen.prototype = {
     /**
@@ -104,7 +105,7 @@ WebInspector.SettingsScreen.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -121,7 +122,7 @@ WebInspector.SettingsTab = function(name, id)
     var header = this.element.createChild("header");
     header.createChild("h3").createTextChild(name);
     this.containerElement = this.element.createChild("div", "help-container-wrapper").createChild("div", "settings-tab help-content help-container");
-}
+};
 
 WebInspector.SettingsTab.prototype = {
     /**
@@ -162,7 +163,7 @@ WebInspector.SettingsTab.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -190,7 +191,7 @@ WebInspector.GenericSettingsTab = function()
         WebInspector.settings.clearAll();
         WebInspector.reload();
     }
-}
+};
 
 /**
  * @param {!Runtime.Extension} extension
@@ -204,7 +205,7 @@ WebInspector.GenericSettingsTab.isSettingVisible = function(extension)
     if (!("category" in descriptor))
         return false;
     return true;
-}
+};
 
 WebInspector.GenericSettingsTab.prototype = {
     /**
@@ -283,7 +284,7 @@ WebInspector.GenericSettingsTab.prototype = {
     },
 
     __proto__: WebInspector.SettingsTab.prototype
-}
+};
 
 /**
  * @constructor
@@ -312,7 +313,7 @@ WebInspector.WorkspaceSettingsTab = function()
     var fileSystems = WebInspector.isolatedFileSystemManager.fileSystems();
     for (var i = 0; i < fileSystems.length; ++i)
         this._addItem(fileSystems[i]);
-}
+};
 
 WebInspector.WorkspaceSettingsTab.prototype = {
     /**
@@ -427,7 +428,7 @@ WebInspector.WorkspaceSettingsTab.prototype = {
     },
 
     __proto__: WebInspector.SettingsTab.prototype
-}
+};
 
 
 /**
@@ -445,7 +446,7 @@ WebInspector.ExperimentsSettingsTab = function()
         for (var i = 0; i < experiments.length; ++i)
             experimentsSection.appendChild(this._createExperimentCheckbox(experiments[i]));
     }
-}
+};
 
 WebInspector.ExperimentsSettingsTab.prototype = {
     /**
@@ -480,13 +481,13 @@ WebInspector.ExperimentsSettingsTab.prototype = {
     },
 
     __proto__: WebInspector.SettingsTab.prototype
-}
+};
 
 /**
  * @constructor
  * @implements {WebInspector.ActionDelegate}
  */
-WebInspector.SettingsScreen.ActionDelegate = function() { }
+WebInspector.SettingsScreen.ActionDelegate = function() { };
 
 WebInspector.SettingsScreen.ActionDelegate.prototype = {
     /**
@@ -510,13 +511,13 @@ WebInspector.SettingsScreen.ActionDelegate.prototype = {
         }
         return false;
     }
-}
+};
 
 /**
  * @constructor
  * @implements {WebInspector.Revealer}
  */
-WebInspector.SettingsScreen.Revealer = function() { }
+WebInspector.SettingsScreen.Revealer = function() { };
 
 WebInspector.SettingsScreen.Revealer.prototype = {
     /**
@@ -579,4 +580,4 @@ WebInspector.SettingsScreen.Revealer.prototype = {
             }
         }
     }
-}
+};

@@ -48,6 +48,8 @@ WebInspector.SourcesView = function()
             this._toolbarEditorActions.appendToolbarItem(actions[i].button(this));
     }
     this._scriptViewToolbar = new WebInspector.Toolbar("", this._toolbarContainerElement);
+    this._toolbarContainerElement.createChild("div", "sources-toolbar-spacer");
+    this._bottomToolbar = new WebInspector.Toolbar("", this._toolbarContainerElement);
 
     WebInspector.startBatchUpdate();
     workspace.uiSourceCodes().forEach(this._addUISourceCode.bind(this));
@@ -57,31 +59,52 @@ WebInspector.SourcesView = function()
     workspace.addEventListener(WebInspector.Workspace.Events.UISourceCodeRemoved, this._uiSourceCodeRemoved, this);
     workspace.addEventListener(WebInspector.Workspace.Events.ProjectRemoved, this._projectRemoved.bind(this), this);
 
+    /**
+     * @param {!Event} event
+     */
     function handleBeforeUnload(event)
     {
         if (event.returnValue)
             return;
-        var unsavedSourceCodes = WebInspector.workspace.unsavedSourceCodes();
+
+        var unsavedSourceCodes = [];
+        var projects = WebInspector.workspace.projectsForType(WebInspector.projectTypes.FileSystem);
+        for (var i = 0; i < projects.length; ++i)
+            unsavedSourceCodes = unsavedSourceCodes.concat(projects[i].uiSourceCodes().filter(isUnsaved));
+
         if (!unsavedSourceCodes.length)
             return;
 
         event.returnValue = WebInspector.UIString("DevTools have unsaved changes that will be permanently lost.");
-        WebInspector.inspectorView.setCurrentPanel(WebInspector.SourcesPanel.instance());
+        WebInspector.viewManager.showView("sources");
         for (var i = 0; i < unsavedSourceCodes.length; ++i)
             WebInspector.Revealer.reveal(unsavedSourceCodes[i]);
+
+        /**
+         * @param {!WebInspector.UISourceCode} sourceCode
+         * @return {boolean}
+         */
+        function isUnsaved(sourceCode)
+        {
+            var binding = WebInspector.persistence.binding(sourceCode);
+            if (binding)
+                return binding.network.isDirty();
+            return sourceCode.isDirty();
+        }
     }
+
     if (!window.opener)
         window.addEventListener("beforeunload", handleBeforeUnload, true);
 
     this._shortcuts = {};
     this.element.addEventListener("keydown", this._handleKeyDown.bind(this), false);
-}
+};
 
 /** @enum {symbol} */
 WebInspector.SourcesView.Events = {
     EditorClosed: Symbol("EditorClosed"),
     EditorSelected: Symbol("EditorSelected"),
-}
+};
 
 WebInspector.SourcesView.prototype = {
     /**
@@ -108,6 +131,30 @@ WebInspector.SourcesView.prototype = {
         registerShortcut.call(this, WebInspector.ShortcutsScreen.SourcesPanelShortcuts.ToggleBreakpoint, this._toggleBreakpoint.bind(this));
         registerShortcut.call(this, WebInspector.ShortcutsScreen.SourcesPanelShortcuts.Save, this._save.bind(this));
         registerShortcut.call(this, WebInspector.ShortcutsScreen.SourcesPanelShortcuts.SaveAll, this._saveAll.bind(this));
+    },
+
+    /**
+     * @return {!WebInspector.Toolbar}
+     */
+    leftToolbar: function()
+    {
+        return this._editorContainer.leftToolbar();
+    },
+
+    /**
+     * @return {!WebInspector.Toolbar}
+     */
+    rightToolbar: function()
+    {
+        return this._editorContainer.rightToolbar();
+    },
+
+    /**
+     * @return {!WebInspector.Toolbar}
+     */
+    bottomToolbar: function()
+    {
+        return this._bottomToolbar;
     },
 
     /**
@@ -230,16 +277,6 @@ WebInspector.SourcesView.prototype = {
         if (uiSourceCode.isFromServiceProject())
             return;
         this._editorContainer.addUISourceCode(uiSourceCode);
-        // Replace debugger script-based uiSourceCode with a network-based one.
-        var currentUISourceCode = this._editorContainer.currentFile();
-        if (!currentUISourceCode)
-            return;
-        var networkURL = WebInspector.networkMapping.networkURL(uiSourceCode);
-        var currentNetworkURL = WebInspector.networkMapping.networkURL(currentUISourceCode);
-        if (currentUISourceCode.isFromServiceProject() && currentUISourceCode !== uiSourceCode && currentNetworkURL === networkURL && networkURL) {
-            this._editorContainer.showFile(uiSourceCode);
-            this._editorContainer.removeUISourceCode(currentUISourceCode);
-        }
     },
 
     _uiSourceCodeRemoved: function(event)
@@ -270,7 +307,7 @@ WebInspector.SourcesView.prototype = {
     _updateScriptViewToolbarItems: function()
     {
         this._scriptViewToolbar.removeToolbarItems();
-        var view = this.visibleView()
+        var view = this.visibleView();
         if (view instanceof WebInspector.SimpleView) {
             for (var item of (/** @type {?WebInspector.SimpleView} */(view)).syncToolbarItems())
                 this._scriptViewToolbar.appendToolbarItem(item);
@@ -287,7 +324,7 @@ WebInspector.SourcesView.prototype = {
     showSourceLocation: function(uiSourceCode, lineNumber, columnNumber, omitFocus, omitHighlight)
     {
         this._historyManager.updateCurrentState();
-        this._editorContainer.showFile(uiSourceCode)
+        this._editorContainer.showFile(uiSourceCode);
         var currentSourceFrame = this.currentSourceFrame();
         if (currentSourceFrame && typeof lineNumber === "number")
             currentSourceFrame.revealPosition(lineNumber, columnNumber, !omitHighlight);
@@ -676,14 +713,14 @@ WebInspector.SourcesView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @interface
  */
 WebInspector.SourcesView.EditorAction = function()
 {
-}
+};
 
 WebInspector.SourcesView.EditorAction.prototype = {
     /**
@@ -691,7 +728,7 @@ WebInspector.SourcesView.EditorAction.prototype = {
      * @return {!WebInspector.ToolbarButton}
      */
     button: function(sourcesView) { }
-}
+};
 
 /**
  * @constructor
@@ -699,7 +736,7 @@ WebInspector.SourcesView.EditorAction.prototype = {
  */
 WebInspector.SourcesView.SwitchFileActionDelegate = function()
 {
-}
+};
 
 /**
  * @param {!WebInspector.UISourceCode} currentUISourceCode
@@ -735,7 +772,7 @@ WebInspector.SourcesView.SwitchFileActionDelegate._nextFile = function(currentUI
     var fullURL = (url ? url + "/" : "") + candidates[index];
     var nextUISourceCode = currentUISourceCode.project().uiSourceCodeForURL(fullURL);
     return nextUISourceCode !== currentUISourceCode ? nextUISourceCode : null;
-}
+};
 
 
 WebInspector.SourcesView.SwitchFileActionDelegate.prototype = {
@@ -757,7 +794,7 @@ WebInspector.SourcesView.SwitchFileActionDelegate.prototype = {
         sourcesView.showSourceLocation(nextUISourceCode);
         return true;
     }
-}
+};
 
 /**
  * @constructor
@@ -765,7 +802,7 @@ WebInspector.SourcesView.SwitchFileActionDelegate.prototype = {
  */
 WebInspector.SourcesView.CloseAllActionDelegate = function()
 {
-}
+};
 
 WebInspector.SourcesView.CloseAllActionDelegate.prototype = {
     /**
@@ -782,4 +819,4 @@ WebInspector.SourcesView.CloseAllActionDelegate.prototype = {
         sourcesView._editorContainer.closeAllFiles();
         return true;
     }
-}
+};

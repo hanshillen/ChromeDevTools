@@ -142,3 +142,20 @@ ol.tree-outline:focus li.selected * {
 .tree-outline.tree-outline-dense ol {
     padding-left: 10px;
 }
+
+
+.tree-outline [data-key-nav=tree]:focus, 
+.tree-outline [data-key-nav=tree]:focus .cm-css-property, 
+.tree-outline [data-key-nav=tree]:focus .selector,
+.tree-outline [data-key-nav=tree]:focus .styles-section-subtitle,
+.tree-outline [data-key-nav=tree]:focus .simple-selector.selector-matches, 
+.tree-outline [data-key-nav=tree]:focus .webkit-css-property,
+.tree-outline [data-key-nav=tree]:focus .simple-selector 
+.tree-outline [data-key-nav=tree]:focus .expand-element {
+	background-color: rgb(56, 121, 217) !important;
+	color: #fff !important;
+	outline: none;
+}
+:host-context(.matched-styles:not(.read-only)) [data-key-nav=tree]:focus .enabled-button {
+    visibility: visible;
+}

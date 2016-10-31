@@ -14,7 +14,7 @@ WebInspector.TracingModel = function(backingStorage)
     // Avoid extra reset of the storage as it's expensive.
     this._firstWritePending = true;
     this.reset();
-}
+};
 
 /**
  * @enum {string}
@@ -47,7 +47,7 @@ WebInspector.TracingModel.MetadataEvent = {
     ProcessName: "process_name",
     ThreadSortIndex: "thread_sort_index",
     ThreadName: "thread_name"
-}
+};
 
 WebInspector.TracingModel.TopLevelEventCategory = "toplevel";
 WebInspector.TracingModel.DevToolsMetadataEventCategory = "disabled-by-default-devtools.timeline";
@@ -62,7 +62,7 @@ WebInspector.TracingModel.FrameLifecycleEventCategory = "cc,devtools";
 WebInspector.TracingModel.isNestableAsyncPhase = function(phase)
 {
     return phase === "b" || phase === "e" || phase === "n";
-}
+};
 
 /**
  * @param {string} phase
@@ -71,7 +71,7 @@ WebInspector.TracingModel.isNestableAsyncPhase = function(phase)
 WebInspector.TracingModel.isAsyncBeginPhase = function(phase)
 {
     return phase === "S" || phase === "b";
-}
+};
 
 /**
  * @param {string} phase
@@ -80,7 +80,7 @@ WebInspector.TracingModel.isAsyncBeginPhase = function(phase)
 WebInspector.TracingModel.isAsyncPhase = function(phase)
 {
     return WebInspector.TracingModel.isNestableAsyncPhase(phase) || phase === "S" || phase === "T" || phase === "F" || phase === "p";
-}
+};
 
 /**
  * @param {string} phase
@@ -89,7 +89,7 @@ WebInspector.TracingModel.isAsyncPhase = function(phase)
 WebInspector.TracingModel.isFlowPhase = function(phase)
 {
     return phase === "s" || phase === "t" || phase === "f";
-}
+};
 
 /**
  * @param {!WebInspector.TracingModel.Event} event
@@ -99,14 +99,61 @@ WebInspector.TracingModel.isTopLevelEvent = function(event)
 {
     return event.hasCategory(WebInspector.TracingModel.TopLevelEventCategory) ||
         event.hasCategory(WebInspector.TracingModel.DevToolsMetadataEventCategory) && event.name === "Program"; // Older timelines may have this instead of toplevel.
-}
+};
+
+/**
+ * @param {!WebInspector.TracingManager.EventPayload} payload
+ * @return {string|undefined}
+ */
+WebInspector.TracingModel._extractId = function(payload)
+{
+    var scope = payload.scope || "";
+    if (typeof payload.id2 === "undefined")
+        return scope && payload.id ? `${scope}@${payload.id}` : payload.id;
+    var id2 = payload.id2;
+    if (typeof id2 === "object" && ("global" in id2) !== ("local" in id2))
+        return typeof id2["global"] !== "undefined" ? `:${scope}:${id2["global"]}` : `:${scope}:${payload.pid}:${id2["local"]}`;
+    console.error(`Unexpected id2 field at ${payload.ts / 1000}, one and only one of 'local' and 'global' should be present.`);
+};
+
+/**
+ * @param {!WebInspector.TracingModel} tracingModel
+ * @return {?WebInspector.TracingModel.Thread}
+ *
+ * TODO: Move this to a better place. This is here just for convenience o
+ * re-use between modules. This really belongs to a higher level, since it
+ * is specific to chrome's usage of tracing.
+ */
+WebInspector.TracingModel.browserMainThread = function(tracingModel)
+{
+    var processes = tracingModel.sortedProcesses();
+    // Avoid warning for an empty model.
+    if (!processes.length)
+        return null;
+    var browserProcesses = [];
+    var crRendererMainThreads = [];
+    for (var process of processes) {
+        if (process.name().toLowerCase().endsWith("browser"))
+            browserProcesses.push(process);
+        crRendererMainThreads.push(...process.sortedThreads().filter(t => t.name() === "CrBrowserMain"));
+    }
+    if (crRendererMainThreads.length === 1)
+        return crRendererMainThreads[0];
+    if (browserProcesses.length === 1)
+        return browserProcesses[0].threadByName("CrBrowserMain");
+    var tracingStartedInBrowser = tracingModel.devToolsMetadataEvents().filter(e => e.name === "TracingStartedInBrowser");
+    if (tracingStartedInBrowser.length === 1)
+        return tracingStartedInBrowser[0].thread;
+    WebInspector.console.error("Failed to find browser main thread in trace, some timeline features may be unavailable");
+    return null;
+};
 
 /**
  * @interface
  */
 WebInspector.BackingStorage = function()
 {
-}
+};
 
 WebInspector.BackingStorage.prototype = {
     /**
@@ -123,7 +170,7 @@ WebInspector.BackingStorage.prototype = {
     finishWriting: function() { },
 
     reset: function() { },
-}
+};
 
 
 WebInspector.TracingModel.prototype = {
@@ -184,6 +231,8 @@ WebInspector.TracingModel.prototype = {
         this._openAsyncEvents = new Map();
         /** @type {!Map<string, !Array<!WebInspector.TracingModel.AsyncEvent>>} */
         this._openNestableAsyncEvents = new Map();
+        /** @type {!Map<string, !WebInspector.TracingModel.ProfileEventsGroup>} */
+        this._profileGroups = new Map();
         /** @type {!Map<string, !Set<string>>} */
         this._parsedCategories = new Map();
     },
@@ -221,6 +270,10 @@ WebInspector.TracingModel.prototype = {
         var event = process._addEvent(payload);
         if (!event)
             return;
+        if (payload.ph === WebInspector.TracingModel.Phase.Sample) {
+            this._addSampleEvent(event);
+            return;
+        }
         // Build async event when we've got events from all threads & processes, so we can sort them and process in the
         // chronological order. However, also add individual async events to the thread flow (above), so we can easily
         // display them on the same chart as other events, should we choose so.
@@ -249,6 +302,27 @@ WebInspector.TracingModel.prototype = {
             process.threadById(payload.tid)._setName(payload.args["name"]);
             break;
         }
+    },
+
+    /**
+     * @param {!WebInspector.TracingModel.Event} event
+     */
+    _addSampleEvent: function(event)
+    {
+        var group = this._profileGroups.get(event.id);
+        if (group)
+            group._addChild(event);
+        else
+            this._profileGroups.set(event.id, new WebInspector.TracingModel.ProfileEventsGroup(event));
+    },
+
+    /**
+     * @param {string} id
+     * @return {?WebInspector.TracingModel.ProfileEventsGroup}
+     */
+    profileGroup: function(id)
+    {
+        return this._profileGroups.get(id) || null;
     },
 
     /**
@@ -356,7 +430,7 @@ WebInspector.TracingModel.prototype = {
                 break;
             var top = openEventsStack.pop();
             if (top.name !== event.name) {
-                console.error("Begin/end event mismatch for nestable async event, " + top.name + " vs. " + event.name);
+                console.error(`Begin/end event mismatch for nestable async event, ${top.name} vs. ${event.name}, key: ${key}`);
                 break;
             }
             top._addStep(event);
@@ -374,7 +448,7 @@ WebInspector.TracingModel.prototype = {
 
         if (event.phase === phase.AsyncBegin) {
             if (asyncEvent) {
-                console.error("Event " + event.name + " has already been started");
+                console.error(`Event ${event.name} has already been started`);
                 return;
             }
             asyncEvent = new WebInspector.TracingModel.AsyncEvent(event);
@@ -416,7 +490,7 @@ WebInspector.TracingModel.prototype = {
         }
         return parsedCategories;
     }
-}
+};
 
 /**
  * @constructor
@@ -458,7 +532,7 @@ WebInspector.TracingModel.Event = function(categories, name, phase, startTime, t
 
     /** @type {number} */
     this.selfTime = 0;
-}
+};
 
 /**
  * @param {!WebInspector.TracingManager.EventPayload} payload
@@ -474,13 +548,14 @@ WebInspector.TracingModel.Event.fromPayload = function(payload, thread)
         console.error("Missing mandatory event argument 'args' at " + payload.ts / 1000);
     if (typeof payload.dur === "number")
         event.setEndTime((payload.ts + payload.dur) / 1000);
-    if (payload.id)
-        event.id = payload.id;
+    var id = WebInspector.TracingModel._extractId(payload);
+    if (typeof id !== "undefined")
+        event.id = id;
     if (payload.bind_id)
         event.bind_id = payload.bind_id;
 
     return event;
-}
+};
 
 WebInspector.TracingModel.Event.prototype = {
     /**
@@ -536,7 +611,7 @@ WebInspector.TracingModel.Event.prototype = {
     _setBackingStorage: function(backingStorage)
     {
     }
-}
+};
 
 /**
  * @param {!WebInspector.TracingModel.Event} a
@@ -546,7 +621,7 @@ WebInspector.TracingModel.Event.prototype = {
 WebInspector.TracingModel.Event.compareStartTime = function(a, b)
 {
     return a.startTime - b.startTime;
-}
+};
 
 /**
  * @param {!WebInspector.TracingModel.Event} a
@@ -556,7 +631,7 @@ WebInspector.TracingModel.Event.compareStartTime = function(a, b)
 WebInspector.TracingModel.Event.compareStartAndEndTime = function(a, b)
 {
     return a.startTime - b.startTime || (b.endTime !== undefined && a.endTime !== undefined && b.endTime - a.endTime) || 0;
-}
+};
 
 /**
  * @param {!WebInspector.TracingModel.Event} a
@@ -569,7 +644,7 @@ WebInspector.TracingModel.Event.orderedCompareStartTime = function(a, b)
     // To change this behavior this comparator return -1 in the case events
     // startTime's are equal, so both events got placed into the result array.
     return a.startTime - b.startTime || a.ordinal - b.ordinal || -1;
-}
+};
 
 /**
  * @constructor
@@ -582,7 +657,7 @@ WebInspector.TracingModel.Event.orderedCompareStartTime = function(a, b)
 WebInspector.TracingModel.ObjectSnapshot = function(category, name, startTime, thread)
 {
     WebInspector.TracingModel.Event.call(this, category, name, WebInspector.TracingModel.Phase.SnapshotObject, startTime, thread);
-}
+};
 
 /**
  * @param {!WebInspector.TracingManager.EventPayload} payload
@@ -592,8 +667,9 @@ WebInspector.TracingModel.ObjectSnapshot = function(category, name, startTime, t
 WebInspector.TracingModel.ObjectSnapshot.fromPayload = function(payload, thread)
 {
     var snapshot = new WebInspector.TracingModel.ObjectSnapshot(payload.cat, payload.name, payload.ts / 1000, thread);
-    if (payload.id)
-        snapshot.id = payload.id;
+    var id = WebInspector.TracingModel._extractId(payload);
+    if (typeof id !== "undefined")
+        snapshot.id = id;
     if (!payload.args || !payload.args["snapshot"]) {
         console.error("Missing mandatory 'snapshot' argument at " + payload.ts / 1000);
         return snapshot;
@@ -601,7 +677,7 @@ WebInspector.TracingModel.ObjectSnapshot.fromPayload = function(payload, thread)
     if (payload.args)
         snapshot.addArgs(payload.args);
     return snapshot;
-}
+};
 
 WebInspector.TracingModel.ObjectSnapshot.prototype = {
     /**
@@ -657,7 +733,7 @@ WebInspector.TracingModel.ObjectSnapshot.prototype = {
     },
 
     __proto__: WebInspector.TracingModel.Event.prototype
-}
+};
 
 /**
  * @constructor
@@ -666,10 +742,10 @@ WebInspector.TracingModel.ObjectSnapshot.prototype = {
  */
 WebInspector.TracingModel.AsyncEvent = function(startEvent)
 {
-    WebInspector.TracingModel.Event.call(this, startEvent.categoriesString, startEvent.name, startEvent.phase, startEvent.startTime, startEvent.thread)
+    WebInspector.TracingModel.Event.call(this, startEvent.categoriesString, startEvent.name, startEvent.phase, startEvent.startTime, startEvent.thread);
     this.addArgs(startEvent.args);
     this.steps = [startEvent];
-}
+};
 
 WebInspector.TracingModel.AsyncEvent.prototype = {
     /**
@@ -687,14 +763,34 @@ WebInspector.TracingModel.AsyncEvent.prototype = {
     },
 
     __proto__: WebInspector.TracingModel.Event.prototype
-}
+};
+
+/**
+ * @constructor
+ * @param {!WebInspector.TracingModel.Event} event
+ */
+WebInspector.TracingModel.ProfileEventsGroup = function(event)
+{
+    /** @type {!Array<!WebInspector.TracingModel.Event>} */
+    this.children = [event];
+};
+
+WebInspector.TracingModel.ProfileEventsGroup.prototype = {
+    /**
+     * @param {!WebInspector.TracingModel.Event} event
+     */
+    _addChild: function(event)
+    {
+        this.children.push(event);
+    }
+};
 
 /**
  * @constructor
  */
 WebInspector.TracingModel.NamedObject = function()
 {
-}
+};
 
 WebInspector.TracingModel.NamedObject.prototype =
 {
@@ -721,7 +817,7 @@ WebInspector.TracingModel.NamedObject.prototype =
     {
         this._sortIndex = sortIndex;
     },
-}
+};
 
 /**
  * @param {!Array.<!WebInspector.TracingModel.NamedObject>} array
@@ -737,7 +833,7 @@ WebInspector.TracingModel.NamedObject._sort = function(array)
         return a._sortIndex !== b._sortIndex ? a._sortIndex - b._sortIndex : a.name().localeCompare(b.name());
     }
     return array.sort(comparator);
-}
+};
 
 /**
  * @constructor
@@ -754,7 +850,7 @@ WebInspector.TracingModel.Process = function(model, id)
     this._threads = new Map();
     this._threadByName = new Map();
     this._model = model;
-}
+};
 
 WebInspector.TracingModel.Process.prototype = {
     /**
@@ -815,7 +911,7 @@ WebInspector.TracingModel.Process.prototype = {
     },
 
     __proto__: WebInspector.TracingModel.NamedObject.prototype
-}
+};
 
 /**
  * @constructor
@@ -832,7 +928,7 @@ WebInspector.TracingModel.Thread = function(process, id)
     this._asyncEvents = [];
     this._id = id;
     this._model = process._model;
-}
+};
 
 WebInspector.TracingModel.Thread.prototype = {
     tracingComplete: function()
@@ -936,4 +1032,4 @@ WebInspector.TracingModel.Thread.prototype = {
     },
 
     __proto__: WebInspector.TracingModel.NamedObject.prototype
-}
+};

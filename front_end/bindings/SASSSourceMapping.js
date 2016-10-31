@@ -44,7 +44,7 @@ WebInspector.SASSSourceMapping = function(cssModel, networkMapping, networkProje
         this._cssModel.addEventListener(WebInspector.CSSModel.Events.SourceMapDetached, this._sourceMapDetached, this),
         this._cssModel.addEventListener(WebInspector.CSSModel.Events.SourceMapChanged, this._sourceMapChanged, this)
     ];
-}
+};
 
 WebInspector.SASSSourceMapping.prototype = {
     /**
@@ -55,10 +55,10 @@ WebInspector.SASSSourceMapping.prototype = {
         var header = /** @type {!WebInspector.CSSStyleSheetHeader} */ (event.data);
         var sourceMap = this._cssModel.sourceMapForHeader(header);
         for (var sassURL of sourceMap.sourceURLs()) {
-            if (!this._networkMapping.hasMappingForNetworkURL(sassURL)) {
-                var contentProvider = sourceMap.sourceContentProvider(sassURL, WebInspector.resourceTypes.SourceMapStyleSheet);
-                this._networkProject.addFile(contentProvider, WebInspector.ResourceTreeFrame.fromStyleSheet(header));
-            }
+            var contentProvider = sourceMap.sourceContentProvider(sassURL, WebInspector.resourceTypes.SourceMapStyleSheet);
+            var embeddedContent = sourceMap.embeddedContentByURL(sassURL);
+            var embeddedContentLength = typeof embeddedContent === "string" ? embeddedContent.length : null;
+            this._networkProject.addFile(contentProvider, WebInspector.ResourceTreeFrame.fromStyleSheet(header), false, embeddedContentLength);
         }
         WebInspector.cssWorkspaceBinding.updateLocations(header);
     },
@@ -120,4 +120,4 @@ WebInspector.SASSSourceMapping.prototype = {
     {
         WebInspector.EventTarget.removeEventListeners(this._eventListeners);
     }
-}
+};

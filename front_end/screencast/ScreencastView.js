@@ -708,8 +708,6 @@ WebInspector.ScreencastView.prototype = {
     _createNavigationBar: function()
     {
         this._navigationBar = this.element.createChild("div", "screencast-navigation");
-        if (Runtime.queryParam("hideNavigation"))
-            this._navigationBar.classList.add("hidden");
 
         this._navigationBack = this._navigationBar.createChild("button", "back");
         this._navigationBack.disabled = true;
@@ -791,7 +789,7 @@ WebInspector.ScreencastView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @param {!Element} element
@@ -805,7 +803,7 @@ WebInspector.ScreencastView.ProgressTracker = function(element)
     WebInspector.targetManager.addModelListener(WebInspector.ResourceTreeModel, WebInspector.ResourceTreeModel.Events.Load, this._onLoad, this);
     WebInspector.targetManager.addModelListener(WebInspector.NetworkManager, WebInspector.NetworkManager.Events.RequestStarted, this._onRequestStarted, this);
     WebInspector.targetManager.addModelListener(WebInspector.NetworkManager, WebInspector.NetworkManager.Events.RequestFinished, this._onRequestFinished, this);
-}
+};
 
 WebInspector.ScreencastView.ProgressTracker.prototype = {
     _onMainFrameNavigated: function()

@@ -8,20 +8,18 @@
  * @constructor
  * @extends {WebInspector.SplitWidget}
  * @param {!WebInspector.TimelineModel} model
- * @param {function(!WebInspector.TracingModel.Event)} showEventDetailsCallback
+ * @param {function(!WebInspector.PaintProfilerSnapshot)} showPaintProfilerCallback
  */
-WebInspector.TimelineLayersView = function(model, showEventDetailsCallback)
+WebInspector.TimelineLayersView = function(model, showPaintProfilerCallback)
 {
     WebInspector.SplitWidget.call(this, true, false, "timelineLayersView");
     this._model = model;
-    this._showEventDetailsCallback = showEventDetailsCallback;
+    this._showPaintProfilerCallback = showPaintProfilerCallback;
 
     this.element.classList.add("timeline-layers-view");
     this._rightSplitWidget = new WebInspector.SplitWidget(true, true, "timelineLayersViewDetails");
     this._rightSplitWidget.element.classList.add("timeline-layers-view-properties");
     this.setMainWidget(this._rightSplitWidget);
-
-    this._paintTiles = [];
 
     var vbox = new WebInspector.VBox();
     this.setSidebarWidget(vbox);
@@ -32,24 +30,21 @@ WebInspector.TimelineLayersView = function(model, showEventDetailsCallback)
     vbox.element.appendChild(layerTreeOutline.element);
 
     this._layers3DView = new WebInspector.Layers3DView(this._layerViewHost);
-    this._layers3DView.addEventListener(WebInspector.Layers3DView.Events.PaintProfilerRequested, this._jumpToPaintEvent, this);
+    this._layers3DView.addEventListener(WebInspector.Layers3DView.Events.PaintProfilerRequested, this._onPaintProfilerRequested, this);
     this._rightSplitWidget.setMainWidget(this._layers3DView);
 
     var layerDetailsView = new WebInspector.LayerDetailsView(this._layerViewHost);
     this._rightSplitWidget.setSidebarWidget(layerDetailsView);
-    layerDetailsView.addEventListener(WebInspector.LayerDetailsView.Events.PaintProfilerRequested, this._jumpToPaintEvent, this);
-}
+    layerDetailsView.addEventListener(WebInspector.LayerDetailsView.Events.PaintProfilerRequested, this._onPaintProfilerRequested, this);
+};
 
 WebInspector.TimelineLayersView.prototype = {
     /**
-     * @param {!WebInspector.DeferredLayerTree} deferredLayerTree
-     * @param {?Array.<!WebInspector.LayerPaintEvent>} paints
+     * @param {!WebInspector.TracingFrameLayerTree} frameLayerTree
      */
-    showLayerTree: function(deferredLayerTree, paints)
+    showLayerTree: function(frameLayerTree)
     {
-        this._disposeTiles();
-        this._deferredLayerTree = deferredLayerTree;
-        this._paints = paints;
+        this._frameLayerTree = frameLayerTree;
         if (this.isShowing())
             this._update();
         else
@@ -67,66 +62,19 @@ WebInspector.TimelineLayersView.prototype = {
     /**
      * @param {!WebInspector.Event} event
      */
-    _jumpToPaintEvent: function(event)
+    _onPaintProfilerRequested: function(event)
     {
-        var traceEvent = /** @type {!WebInspector.TracingModel.Event} */ (event.data);
-        this._showEventDetailsCallback(traceEvent);
+        var selection = /** @type {!WebInspector.LayerView.Selection} */ (event.data);
+        this._layers3DView.snapshotForSelection(selection).then(snapshotWithRect => {
+            if (snapshotWithRect)
+                this._showPaintProfilerCallback(snapshotWithRect.snapshot);
+        });
     },
 
     _update: function()
     {
-        var layerTree;
-
-        this._target = this._deferredLayerTree.target();
-        var originalTiles = this._paintTiles;
-        var tilesReadyBarrier = new CallbackBarrier();
-        this._deferredLayerTree.resolve(tilesReadyBarrier.createCallback(onLayersReady));
-        for (var i = 0; this._paints && i < this._paints.length; ++i)
-            this._paints[i].loadSnapshot(tilesReadyBarrier.createCallback(onSnapshotLoaded.bind(this, this._paints[i])));
-        tilesReadyBarrier.callWhenDone(onLayersAndTilesReady.bind(this));
-
-        /**
-         * @param {!WebInspector.LayerTreeBase} resolvedLayerTree
-         */
-        function onLayersReady(resolvedLayerTree)
-        {
-            layerTree = resolvedLayerTree;
-        }
-
-        /**
-         * @param {!WebInspector.LayerPaintEvent} paintEvent
-         * @param {?Array.<number>} rect
-         * @param {?WebInspector.PaintProfilerSnapshot} snapshot
-         * @this {WebInspector.TimelineLayersView}
-         */
-        function onSnapshotLoaded(paintEvent, rect, snapshot)
-        {
-            if (!rect || !snapshot)
-                return;
-            // We're too late and there's a new generation of tiles being loaded.
-            if (originalTiles !== this._paintTiles) {
-                snapshot.dispose();
-                return;
-            }
-            this._paintTiles.push({layerId: paintEvent.layerId(), rect: rect, snapshot: snapshot, traceEvent: paintEvent.event()});
-        }
-
-        /**
-         * @this {WebInspector.TimelineLayersView}
-         */
-        function onLayersAndTilesReady()
-        {
-            this._layerViewHost.setLayerTree(layerTree);
-            this._layers3DView.setTiles(this._paintTiles);
-        }
-    },
-
-    _disposeTiles: function()
-    {
-        for (var i = 0; i < this._paintTiles.length; ++i)
-            this._paintTiles[i].snapshot.dispose();
-        this._paintTiles = [];
+        this._frameLayerTree.layerTreePromise().then(layerTree => this._layerViewHost.setLayerTree(layerTree));
     },
 
     __proto__: WebInspector.SplitWidget.prototype
-}
+};

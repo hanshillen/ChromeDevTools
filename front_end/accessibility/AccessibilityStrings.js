@@ -197,7 +197,7 @@ WebInspector.AccessibilityStrings.AXSourceTypes = {
         name: "Related element",
         description: "Value from related element."
     }
-}
+};
 
 WebInspector.AccessibilityStrings.AXNativeSourceTypes = {
     "figcaption": {
@@ -220,9 +220,13 @@ WebInspector.AccessibilityStrings.AXNativeSourceTypes = {
         name: "From caption",
         description: "Value from table caption."
     },
+    "title": {
+        "name": "From title",
+        "description": "Value from title attribute."
+    },
     "other": {
         name: "From native HTML",
         description: "Value from native HTML (unknown source)."
     },
 
-}
+};

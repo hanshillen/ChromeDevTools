@@ -12,12 +12,12 @@ WebInspector.ThrottledWidget = function(isWebComponent)
     WebInspector.VBox.call(this, isWebComponent);
     this._updateThrottler = new WebInspector.Throttler(100);
     this._updateWhenVisible = false;
-}
+};
 
 WebInspector.ThrottledWidget.prototype = {
     /**
      * @protected
-     * @return {!Promise.<?>}
+     * @return {!Promise<?>}
      */
     doUpdate: function()
     {
@@ -33,16 +33,14 @@ WebInspector.ThrottledWidget.prototype = {
 
         /**
          * @this {WebInspector.ThrottledWidget}
-         * @return {!Promise.<?>}
+         * @return {!Promise<?>}
          */
         function innerUpdate()
         {
-            if (this.isShowing()) {
+            if (this.isShowing())
                 return this.doUpdate();
-            } else {
-                this._updateWhenVisible = true;
-                return Promise.resolve();
-            }
+            this._updateWhenVisible = true;
+            return Promise.resolve();
         }
     },
 
@@ -57,4 +55,4 @@ WebInspector.ThrottledWidget.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};

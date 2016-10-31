@@ -33,7 +33,7 @@ WebInspector.EventListenerBreakpointsSidebarPane = function()
     this._createCategory(WebInspector.UIString("Keyboard"), ["keydown", "keyup", "keypress", "input"]);
     this._createCategory(WebInspector.UIString("Load"), ["load", "beforeunload", "unload", "abort", "error", "hashchange", "popstate"]);
     this._createCategory(WebInspector.UIString("Media"), ["play", "pause", "playing", "canplay", "canplaythrough", "seeking", "seeked", "timeupdate", "ended", "ratechange", "durationchange", "volumechange", "loadstart", "progress", "suspend", "abort", "error", "emptied", "stalled", "loadedmetadata", "loadeddata", "waiting"], false, ["audio", "video"]);
-    this._createCategory(WebInspector.UIString("Mouse"), ["click", "dblclick", "mousedown", "mouseup", "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave", "mousewheel", "wheel", "contextmenu"]);
+    this._createCategory(WebInspector.UIString("Mouse"), ["auxclick", "click", "dblclick", "mousedown", "mouseup", "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave", "mousewheel", "wheel", "contextmenu"]);
     this._createCategory(WebInspector.UIString("Parse"), ["setInnerHTML"], true);
     this._createCategory(WebInspector.UIString("Pointer"), ["pointerover", "pointerout", "pointerenter", "pointerleave", "pointerdown", "pointerup", "pointermove", "pointercancel", "gotpointercapture", "lostpointercapture"]);
     this._createCategory(WebInspector.UIString("Script"), ["scriptFirstStatement", "scriptBlockedByCSP"], true);
@@ -47,7 +47,7 @@ WebInspector.EventListenerBreakpointsSidebarPane = function()
     WebInspector.targetManager.addModelListener(WebInspector.DebuggerModel, WebInspector.DebuggerModel.Events.DebuggerPaused, this._update, this);
     WebInspector.targetManager.addModelListener(WebInspector.DebuggerModel, WebInspector.DebuggerModel.Events.DebuggerResumed, this._update, this);
     WebInspector.context.addFlavorChangeListener(WebInspector.Target, this._update, this);
-}
+};
 
 WebInspector.EventListenerBreakpointsSidebarPane.categoryListener = "listener:";
 WebInspector.EventListenerBreakpointsSidebarPane.categoryInstrumentation = "instrumentation:";
@@ -86,7 +86,7 @@ WebInspector.EventListenerBreakpointsSidebarPane.eventNameForUI = function(event
             return WebInspector.UIString("Script blocked due to Content Security Policy directive: %s", auxData["directiveText"]);
     }
     return WebInspector.EventListenerBreakpointsSidebarPane._eventNamesForUI[eventName] || eventName.substring(eventName.indexOf(":") + 1);
-}
+};
 
 WebInspector.EventListenerBreakpointsSidebarPane.prototype = {
     /**
@@ -349,4 +349,4 @@ WebInspector.EventListenerBreakpointsSidebarPane.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};

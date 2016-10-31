@@ -29,7 +29,7 @@
 /**
  * @interface
  */
-WebInspector.TabbedEditorContainerDelegate = function() { }
+WebInspector.TabbedEditorContainerDelegate = function() { };
 
 WebInspector.TabbedEditorContainerDelegate.prototype = {
     /**
@@ -37,7 +37,7 @@ WebInspector.TabbedEditorContainerDelegate.prototype = {
      * @return {!WebInspector.Widget}
      */
     viewForFile: function(uiSourceCode) { },
-}
+};
 
 /**
  * @constructor
@@ -57,30 +57,87 @@ WebInspector.TabbedEditorContainer = function(delegate, setting, placeholderText
 
     this._tabbedPane.setCloseableTabs(true);
     this._tabbedPane.setAllowTabReorder(true, true);
-    this._tabbedPane.insertBeforeTabStrip(createElementWithClass("div", "sources-editor-tabstrip-left"));
-    this._tabbedPane.appendAfterTabStrip(createElementWithClass("div", "sources-editor-tabstrip-right"));
 
     this._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabClosed, this._tabClosed, this);
     this._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabSelected, this._tabSelected, this);
+
+    WebInspector.persistence.addEventListener(WebInspector.Persistence.Events.BindingCreated, this._onBindingCreated, this);
+    WebInspector.persistence.addEventListener(WebInspector.Persistence.Events.BindingRemoved, this._onBindingRemoved, this);
 
     this._tabIds = new Map();
     this._files = {};
 
     this._previouslyViewedFilesSetting = setting;
     this._history = WebInspector.TabbedEditorContainer.History.fromObject(this._previouslyViewedFilesSetting.get());
-}
+};
 
 /** @enum {symbol} */
 WebInspector.TabbedEditorContainer.Events = {
     EditorSelected: Symbol("EditorSelected"),
     EditorClosed: Symbol("EditorClosed")
-}
+};
 
 WebInspector.TabbedEditorContainer._tabId = 0;
 
 WebInspector.TabbedEditorContainer.maximalPreviouslyViewedFilesCount = 30;
 
 WebInspector.TabbedEditorContainer.prototype = {
+    /**
+     * @param {!WebInspector.Event} event
+     */
+    _onBindingCreated: function(event)
+    {
+        var binding = /** @type {!WebInspector.PersistenceBinding} */(event.data);
+        var networkTabId = this._tabIds.get(binding.network);
+        var fileSystemTabId = this._tabIds.get(binding.fileSystem);
+
+        if (networkTabId)
+            this._tabbedPane.changeTabTitle(networkTabId, this._titleForFile(binding.fileSystem), this._tooltipForFile(binding.fileSystem));
+        if (!fileSystemTabId)
+            return;
+
+        var wasSelectedInFileSystem = this._currentFile === binding.fileSystem;
+        var currentSelectionRange = this._history.selectionRange(binding.fileSystem.url());
+        var currentScrollLineNumber = this._history.scrollLineNumber(binding.fileSystem.url());
+
+        var tabIndex = this._tabbedPane.tabIndex(fileSystemTabId);
+        var tabsToClose = [fileSystemTabId];
+        if (networkTabId)
+            tabsToClose.push(networkTabId);
+        this._closeTabs(tabsToClose, true);
+        networkTabId = this._appendFileTab(binding.network, false, tabIndex);
+        this._updateHistory();
+
+        if (wasSelectedInFileSystem)
+            this._tabbedPane.selectTab(networkTabId, false);
+
+        var networkTabView = /** @type {!WebInspector.Widget} */(this._tabbedPane.tabView(networkTabId));
+        this._restoreEditorProperties(networkTabView, currentSelectionRange, currentScrollLineNumber);
+    },
+
+    /**
+     * @param {!WebInspector.Event} event
+     */
+    _onBindingRemoved: function(event)
+    {
+        var binding = /** @type {!WebInspector.PersistenceBinding} */(event.data);
+        var networkTabId = this._tabIds.get(binding.network);
+        if (!networkTabId)
+            return;
+        var tabIndex = this._tabbedPane.tabIndex(networkTabId);
+        var wasSelected = this._currentFile === binding.network;
+        var fileSystemTabId = this._appendFileTab(binding.fileSystem, false, tabIndex);
+        this._updateHistory();
+
+        if (wasSelected)
+            this._tabbedPane.selectTab(fileSystemTabId, false);
+
+        var fileSystemTabView = /** @type {!WebInspector.Widget} */(this._tabbedPane.tabView(fileSystemTabId));
+        var savedSelectionRange = this._history.selectionRange(binding.network.url());
+        var savedScrollLineNumber = this._history.scrollLineNumber(binding.network.url());
+        this._restoreEditorProperties(fileSystemTabView, savedSelectionRange, savedScrollLineNumber);
+    },
+
     /**
      * @return {!WebInspector.Widget}
      */
@@ -103,6 +160,22 @@ WebInspector.TabbedEditorContainer.prototype = {
     fileViews: function()
     {
         return /** @type {!Array.<!WebInspector.Widget>} */ (this._tabbedPane.tabViews());
+    },
+
+    /**
+     * @return {!WebInspector.Toolbar}
+     */
+    leftToolbar: function()
+    {
+        return this._tabbedPane.leftToolbar();
+    },
+
+    /**
+     * @return {!WebInspector.Toolbar}
+     */
+    rightToolbar: function()
+    {
+        return this._tabbedPane.rightToolbar();
     },
 
     /**
@@ -161,18 +234,18 @@ WebInspector.TabbedEditorContainer.prototype = {
 
     _addViewListeners: function()
     {
-        if (!this._currentView)
+        if (!this._currentView || !this._currentView.textEditor)
             return;
-        this._currentView.addEventListener(WebInspector.SourceFrame.Events.ScrollChanged, this._scrollChanged, this);
-        this._currentView.addEventListener(WebInspector.SourceFrame.Events.SelectionChanged, this._selectionChanged, this);
+        this._currentView.textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.ScrollChanged, this._scrollChanged, this);
+        this._currentView.textEditor.addEventListener(WebInspector.SourcesTextEditor.Events.SelectionChanged, this._selectionChanged, this);
     },
 
     _removeViewListeners: function()
     {
-        if (!this._currentView)
+        if (!this._currentView || !this._currentView.textEditor)
             return;
-        this._currentView.removeEventListener(WebInspector.SourceFrame.Events.ScrollChanged, this._scrollChanged, this);
-        this._currentView.removeEventListener(WebInspector.SourceFrame.Events.SelectionChanged, this._selectionChanged, this);
+        this._currentView.textEditor.removeEventListener(WebInspector.SourcesTextEditor.Events.ScrollChanged, this._scrollChanged, this);
+        this._currentView.textEditor.removeEventListener(WebInspector.SourcesTextEditor.Events.SelectionChanged, this._selectionChanged, this);
     },
 
     /**
@@ -180,9 +253,19 @@ WebInspector.TabbedEditorContainer.prototype = {
      */
     _scrollChanged: function(event)
     {
+        if (this._scrollTimer)
+            clearTimeout(this._scrollTimer);
         var lineNumber = /** @type {number} */ (event.data);
+        this._scrollTimer = setTimeout(saveHistory.bind(this), 100);
         this._history.updateScrollLineNumber(this._currentFile.url(), lineNumber);
-        this._history.save(this._previouslyViewedFilesSetting);
+
+        /**
+         * @this {WebInspector.TabbedEditorContainer}
+         */
+        function saveHistory()
+        {
+            this._history.save(this._previouslyViewedFilesSetting);
+        }
     },
 
     /**
@@ -201,6 +284,8 @@ WebInspector.TabbedEditorContainer.prototype = {
      */
     _innerShowFile: function(uiSourceCode, userGesture)
     {
+        var binding = WebInspector.persistence.binding(uiSourceCode);
+        uiSourceCode = binding ? binding.network : uiSourceCode;
         if (this._currentFile === uiSourceCode)
             return;
 
@@ -232,9 +317,11 @@ WebInspector.TabbedEditorContainer.prototype = {
      */
     _titleForFile: function(uiSourceCode)
     {
+        var binding = WebInspector.persistence.binding(uiSourceCode);
+        var titleUISourceCode = binding ? binding.fileSystem : uiSourceCode;
         var maxDisplayNameLength = 30;
-        var title = uiSourceCode.displayName(true).trimMiddle(maxDisplayNameLength);
-        if (uiSourceCode.isDirty() || uiSourceCode.hasUnsavedCommittedChanges())
+        var title = titleUISourceCode.displayName(true).trimMiddle(maxDisplayNameLength);
+        if (uiSourceCode.isDirty() || WebInspector.persistence.hasUnsavedCommittedChanges(uiSourceCode))
             title += "*";
         return title;
     },
@@ -261,15 +348,16 @@ WebInspector.TabbedEditorContainer.prototype = {
 
     /**
      * @param {!Array.<string>} ids
+     * @param {boolean=} forceCloseDirtyTabs
      */
-    _closeTabs: function(ids)
+    _closeTabs: function(ids, forceCloseDirtyTabs)
     {
         var dirtyTabs = [];
         var cleanTabs = [];
         for (var i = 0; i < ids.length; ++i) {
             var id = ids[i];
             var uiSourceCode = this._files[id];
-            if (uiSourceCode.isDirty())
+            if (!forceCloseDirtyTabs && uiSourceCode.isDirty())
                 dirtyTabs.push(id);
             else
                 cleanTabs.push(id);
@@ -383,18 +471,19 @@ WebInspector.TabbedEditorContainer.prototype = {
      */
     _tooltipForFile: function(uiSourceCode)
     {
+        uiSourceCode = WebInspector.persistence.fileSystem(uiSourceCode) || uiSourceCode;
         return uiSourceCode.url();
     },
 
     /**
      * @param {!WebInspector.UISourceCode} uiSourceCode
      * @param {boolean=} userGesture
+     * @param {number=} index
      * @return {string}
      */
-    _appendFileTab: function(uiSourceCode, userGesture)
+    _appendFileTab: function(uiSourceCode, userGesture, index)
     {
         var view = this._delegate.viewForFile(uiSourceCode);
-        var sourceFrame = view instanceof WebInspector.SourceFrame ? /** @type {!WebInspector.SourceFrame} */ (view) : null;
         var title = this._titleForFile(uiSourceCode);
         var tooltip = this._tooltipForFile(uiSourceCode);
 
@@ -403,17 +492,30 @@ WebInspector.TabbedEditorContainer.prototype = {
         this._files[tabId] = uiSourceCode;
 
         var savedSelectionRange = this._history.selectionRange(uiSourceCode.url());
-        if (sourceFrame && savedSelectionRange)
-            sourceFrame.setSelection(savedSelectionRange);
         var savedScrollLineNumber = this._history.scrollLineNumber(uiSourceCode.url());
-        if (sourceFrame && savedScrollLineNumber)
-            sourceFrame.scrollToLine(savedScrollLineNumber);
+        this._restoreEditorProperties(view, savedSelectionRange, savedScrollLineNumber);
 
-        this._tabbedPane.appendTab(tabId, title, view, tooltip, userGesture);
+        this._tabbedPane.appendTab(tabId, title, view, tooltip, userGesture, undefined, index);
 
         this._updateFileTitle(uiSourceCode);
         this._addUISourceCodeListeners(uiSourceCode);
         return tabId;
+    },
+
+    /**
+     * @param {!WebInspector.Widget} editorView
+     * @param {!WebInspector.TextRange=} selection
+     * @param {number=} firstLineNumber
+     */
+    _restoreEditorProperties: function(editorView, selection, firstLineNumber)
+    {
+        var sourceFrame = editorView instanceof WebInspector.SourceFrame ? /** @type {!WebInspector.SourceFrame} */ (editorView) : null;
+        if (!sourceFrame)
+            return;
+        if (selection)
+            sourceFrame.setSelection(selection);
+        if (typeof firstLineNumber === "number")
+            sourceFrame.scrollToLine(firstLineNumber);
     },
 
     /**
@@ -482,7 +584,7 @@ WebInspector.TabbedEditorContainer.prototype = {
         if (tabId) {
             var title = this._titleForFile(uiSourceCode);
             this._tabbedPane.changeTabTitle(tabId, title);
-            if (uiSourceCode.hasUnsavedCommittedChanges())
+            if (WebInspector.persistence.hasUnsavedCommittedChanges(uiSourceCode))
                 this._tabbedPane.setTabIcon(tabId, "warning-icon", WebInspector.UIString("Changes to this file were not saved to file system."));
             else
                 this._tabbedPane.setTabIcon(tabId, "");
@@ -525,7 +627,7 @@ WebInspector.TabbedEditorContainer.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
@@ -539,7 +641,7 @@ WebInspector.TabbedEditorContainer.HistoryItem = function(url, selectionRange, s
     /** @const */ this._isSerializable = url.length < WebInspector.TabbedEditorContainer.HistoryItem.serializableUrlLengthLimit;
     this.selectionRange = selectionRange;
     this.scrollLineNumber = scrollLineNumber;
-}
+};
 
 WebInspector.TabbedEditorContainer.HistoryItem.serializableUrlLengthLimit = 4096;
 
@@ -551,7 +653,7 @@ WebInspector.TabbedEditorContainer.HistoryItem.fromObject = function(serializedH
 {
     var selectionRange = serializedHistoryItem.selectionRange ? WebInspector.TextRange.fromObject(serializedHistoryItem.selectionRange) : undefined;
     return new WebInspector.TabbedEditorContainer.HistoryItem(serializedHistoryItem.url, selectionRange, serializedHistoryItem.scrollLineNumber);
-}
+};
 
 WebInspector.TabbedEditorContainer.HistoryItem.prototype = {
     /**
@@ -567,7 +669,7 @@ WebInspector.TabbedEditorContainer.HistoryItem.prototype = {
         serializedHistoryItem.scrollLineNumber = this.scrollLineNumber;
         return serializedHistoryItem;
     }
-}
+};
 
 /**
  * @constructor
@@ -577,7 +679,7 @@ WebInspector.TabbedEditorContainer.History = function(items)
 {
     this._items = items;
     this._rebuildItemIndex();
-}
+};
 
 /**
  * @param {!Array.<!Object>} serializedHistory
@@ -589,7 +691,7 @@ WebInspector.TabbedEditorContainer.History.fromObject = function(serializedHisto
     for (var i = 0; i < serializedHistory.length; ++i)
         items.push(WebInspector.TabbedEditorContainer.HistoryItem.fromObject(serializedHistory[i]));
     return new WebInspector.TabbedEditorContainer.History(items);
-}
+};
 
 WebInspector.TabbedEditorContainer.History.prototype = {
     /**
@@ -722,7 +824,7 @@ WebInspector.TabbedEditorContainer.History.prototype = {
             result.push(this._items[i].url);
         return result;
     }
-}
+};
 
 /**
  * @constructor
@@ -732,7 +834,7 @@ WebInspector.TabbedEditorContainer.History.prototype = {
 WebInspector.EditorContainerTabDelegate = function(editorContainer)
 {
     this._editorContainer = editorContainer;
-}
+};
 
 WebInspector.EditorContainerTabDelegate.prototype = {
     /**
@@ -754,4 +856,4 @@ WebInspector.EditorContainerTabDelegate.prototype = {
     {
         this._editorContainer._onContextMenu(tabId, contextMenu);
     }
-}
+};

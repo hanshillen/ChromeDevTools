@@ -7,7 +7,7 @@
  */
 WebInspector.View = function()
 {
-}
+};
 
 WebInspector.View.prototype = {
     /**
@@ -39,9 +39,10 @@ WebInspector.View.prototype = {
      * @return {!Promise<!WebInspector.Widget>}
      */
     widget: function() { }
-}
+};
 
 WebInspector.View._symbol = Symbol("view");
+WebInspector.View._widgetSymbol = Symbol("widget");
 
 /**
  * @constructor
@@ -57,7 +58,7 @@ WebInspector.SimpleView = function(title, isWebComponent)
     /** @type {!Array<!WebInspector.ToolbarItem>} */
     this._toolbarItems = [];
     this[WebInspector.View._symbol] = this;
-}
+};
 
 WebInspector.SimpleView.prototype = {
     /**
@@ -139,7 +140,7 @@ WebInspector.SimpleView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -149,7 +150,7 @@ WebInspector.SimpleView.prototype = {
 WebInspector.ProvidedView = function(extension)
 {
     this._extension = extension;
-}
+};
 
 WebInspector.ProvidedView.prototype = {
     /**
@@ -196,7 +197,7 @@ WebInspector.ProvidedView.prototype = {
     {
         var actionIds = this._extension.descriptor()["actionIds"];
         if (actionIds) {
-            var result = []
+            var result = [];
             for (var id of actionIds.split(",")) {
                 var item = WebInspector.Toolbar.createActionButtonForId(id.trim());
                 if (item)
@@ -223,12 +224,12 @@ WebInspector.ProvidedView.prototype = {
             return  /** @type {!WebInspector.Widget} */ (widget);
         });
     }
-}
+};
 
 /**
  * @interface
  */
-WebInspector.ViewLocation = function() { }
+WebInspector.ViewLocation = function() { };
 
 WebInspector.ViewLocation.prototype = {
     /**
@@ -250,16 +251,21 @@ WebInspector.ViewLocation.prototype = {
     showView: function(view, insertBefore) { },
 
     /**
+     * @param {!WebInspector.View} view
+     */
+    removeView: function(view) { },
+
+    /**
      * @return {!WebInspector.Widget}
      */
     widget: function() { }
-}
+};
 
 /**
  * @interface
  * @extends {WebInspector.ViewLocation}
  */
-WebInspector.TabbedViewLocation = function() { }
+WebInspector.TabbedViewLocation = function() { };
 
 WebInspector.TabbedViewLocation.prototype = {
     /**
@@ -268,12 +274,12 @@ WebInspector.TabbedViewLocation.prototype = {
     tabbedPane: function() { },
 
     enableMoreTabsButton: function() { }
-}
+};
 
 /**
  * @interface
  */
-WebInspector.ViewLocationResolver = function() { }
+WebInspector.ViewLocationResolver = function() { };
 
 WebInspector.ViewLocationResolver.prototype = {
     /**
@@ -281,7 +287,7 @@ WebInspector.ViewLocationResolver.prototype = {
      * @return {?WebInspector.ViewLocation}
      */
     resolveLocation: function(location) { }
-}
+};
 
 /**
  * @constructor
@@ -298,7 +304,7 @@ WebInspector.ViewManager = function()
         this._views.set(descriptor["id"], new WebInspector.ProvidedView(extension));
         this._locationNameByViewId.set(descriptor["id"], descriptor["location"]);
     }
-}
+};
 
 WebInspector.ViewManager.prototype = {
     /**
@@ -321,6 +327,16 @@ WebInspector.ViewManager.prototype = {
     view: function(viewId)
     {
         return this._views.get(viewId);
+    },
+
+    /**
+     * @param {string} viewId
+     * @return {?WebInspector.Widget}
+     */
+    materializedWidget: function(viewId)
+    {
+        var view = this.view(viewId);
+        return view ? view[WebInspector.View._widgetSymbol] : null;
     },
 
     /**
@@ -373,11 +389,12 @@ WebInspector.ViewManager.prototype = {
      * @param {function()=} revealCallback
      * @param {string=} location
      * @param {boolean=} restoreSelection
+     * @param {boolean=} allowReorder
      * @return {!WebInspector.TabbedViewLocation}
      */
-    createTabbedLocation: function(revealCallback, location, restoreSelection)
+    createTabbedLocation: function(revealCallback, location, restoreSelection, allowReorder)
     {
-        return new WebInspector.ViewManager._TabbedLocation(this, revealCallback, location, restoreSelection);
+        return new WebInspector.ViewManager._TabbedLocation(this, revealCallback, location, restoreSelection, allowReorder);
     },
 
     /**
@@ -403,7 +420,7 @@ WebInspector.ViewManager.prototype = {
         }
         return result;
     }
-}
+};
 
 
 /**
@@ -418,7 +435,7 @@ WebInspector.ViewManager._populateToolbar = function(element, toolbarItems)
     element.insertBefore(toolbar.element, element.firstChild);
     for (var item of toolbarItems)
         toolbar.appendToolbarItem(item);
-}
+};
 
 /**
  * @constructor
@@ -430,7 +447,9 @@ WebInspector.ViewManager._ContainerWidget = function(view)
     WebInspector.VBox.call(this);
     this.element.classList.add("flex-auto", "view-container", "overflow-auto");
     this._view = view;
-}
+    this.element.tabIndex = 0;
+    this.setDefaultFocusedElement(this.element);
+};
 
 WebInspector.ViewManager._ContainerWidget.prototype = {
     /**
@@ -442,13 +461,21 @@ WebInspector.ViewManager._ContainerWidget.prototype = {
             return this._materializePromise;
         var promises = [];
         promises.push(this._view.toolbarItems().then(WebInspector.ViewManager._populateToolbar.bind(WebInspector.ViewManager, this.element)));
-        promises.push(this._view.widget().then(widget => widget.show(this.element)));
+        promises.push(this._view.widget().then(widget => {
+            // Move focus from |this| to loaded |widget| if any.
+            var shouldFocus = this.element.hasFocus();
+            this.setDefaultFocusedElement(null);
+            this._view[WebInspector.View._widgetSymbol] = widget;
+            widget.show(this.element);
+            if (shouldFocus)
+                widget.focus();
+        }));
         this._materializePromise = Promise.all(promises);
         return this._materializePromise;
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -471,7 +498,7 @@ WebInspector.ViewManager._ExpandableContainerWidget = function(view)
     this.contentElement.createChild("content");
     this._view = view;
     view[WebInspector.ViewManager._ExpandableContainerWidget._symbol] = this;
-}
+};
 
 WebInspector.ViewManager._ExpandableContainerWidget._symbol = Symbol("container");
 
@@ -487,6 +514,7 @@ WebInspector.ViewManager._ExpandableContainerWidget.prototype = {
         promises.push(this._view.toolbarItems().then(WebInspector.ViewManager._populateToolbar.bind(WebInspector.ViewManager, this._titleElement)));
         promises.push(this._view.widget().then(widget => {
             this._widget = widget;
+            this._view[WebInspector.View._widgetSymbol] = widget;
             widget.show(this.element);
         }));
         this._materializePromise = Promise.all(promises);
@@ -530,7 +558,7 @@ WebInspector.ViewManager._ExpandableContainerWidget.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -543,7 +571,7 @@ WebInspector.ViewManager._Location = function(manager, widget, revealCallback)
     this._manager = manager;
     this._revealCallback = revealCallback;
     this._widget = widget;
-}
+};
 
 WebInspector.ViewManager._Location.symbol = Symbol("location");
 
@@ -561,7 +589,7 @@ WebInspector.ViewManager._Location.prototype = {
         if (this._revealCallback)
             this._revealCallback();
     }
-}
+};
 
 /**
  * @constructor
@@ -571,15 +599,23 @@ WebInspector.ViewManager._Location.prototype = {
  * @param {function()=} revealCallback
  * @param {string=} location
  * @param {boolean=} restoreSelection
+ * @param {boolean=} allowReorder
  */
-WebInspector.ViewManager._TabbedLocation = function(manager, revealCallback, location, restoreSelection)
+WebInspector.ViewManager._TabbedLocation = function(manager, revealCallback, location, restoreSelection, allowReorder)
 {
-    this._tabbedPane = new WebInspector.TabbedPane();
-    WebInspector.ViewManager._Location.call(this, manager, this._tabbedPane, revealCallback);
+    var tabbedPane = new WebInspector.TabbedPane();
+    if (allowReorder)
+        tabbedPane.setAllowTabReorder(true);
+
+    WebInspector.ViewManager._Location.call(this, manager, tabbedPane, revealCallback);
+    this._tabbedPane = tabbedPane;
+    this._allowReorder = allowReorder;
 
     this._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabSelected, this._tabSelected, this);
     this._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabClosed, this._tabClosed, this);
     this._closeableTabSetting = WebInspector.settings.createSetting(location + "-closeableTabs", {});
+    this._tabOrderSetting = WebInspector.settings.createSetting(location + "-tabOrder", {});
+    this._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabOrderChanged, this._persistTabOrder, this);
     if (restoreSelection)
         this._lastSelectedTabSetting = WebInspector.settings.createSetting(location + "-selectedTab", "");
 
@@ -588,7 +624,9 @@ WebInspector.ViewManager._TabbedLocation = function(manager, revealCallback, loc
 
     if (location)
         this.appendApplicableItems(location);
-}
+};
+
+WebInspector.ViewManager._TabbedLocation.orderStep = 10;  // Keep in sync with descriptors.
 
 WebInspector.ViewManager._TabbedLocation.prototype = {
     /**
@@ -614,9 +652,7 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
      */
     enableMoreTabsButton: function()
     {
-        var toolbar = new WebInspector.Toolbar("drawer-toolbar");
-        toolbar.appendToolbarItem(new WebInspector.ToolbarMenuButton(this._appendTabsToMenu.bind(this)));
-        this._tabbedPane.insertBeforeTabStrip(toolbar.element);
+        this._tabbedPane.leftToolbar().appendToolbarItem(new WebInspector.ToolbarMenuButton(this._appendTabsToMenu.bind(this)));
         this._tabbedPane.disableOverflowMenu();
     },
 
@@ -626,7 +662,17 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
      */
     appendApplicableItems: function(locationName)
     {
-        for (var view of this._manager._viewsForLocation(locationName)) {
+        var views = this._manager._viewsForLocation(locationName);
+        if (this._allowReorder) {
+            var i = 0;
+            var persistedOrders = this._tabOrderSetting.get();
+            var orders = new Map();
+            for (var view of views)
+                orders.set(view.viewId(), persistedOrders[view.viewId()] || (++i) * WebInspector.ViewManager._TabbedLocation.orderStep);
+            views.sort((a, b) => orders.get(a.viewId()) - orders.get(b.viewId()));
+        }
+
+        for (var view of views) {
             var id = view.viewId();
             this._views.set(id, view);
             view[WebInspector.ViewManager._Location.symbol] = this;
@@ -637,14 +683,7 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
             else if (this._closeableTabSetting.get()[id])
                 this._appendTab(view);
         }
-    },
-
-    wasShown: function()
-    {
-        if (this._wasAlreadyShown || !this._lastSelectedTabSetting)
-            return;
-        this._wasAlreadyShown = true;
-        if (this._tabbedPane.hasTab(this._lastSelectedTabSetting.get()))
+        if (this._lastSelectedTabSetting && this._tabbedPane.hasTab(this._lastSelectedTabSetting.get()))
             this._tabbedPane.selectTab(this._lastSelectedTabSetting.get());
     },
 
@@ -661,10 +700,11 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
 
     /**
      * @param {!WebInspector.View} view
+     * @param {number=} index
      */
-    _appendTab: function(view)
+    _appendTab: function(view, index)
     {
-        this._tabbedPane.appendTab(view.viewId(), view.title(), new WebInspector.ViewManager._ContainerWidget(view), undefined, false, view.isCloseable() || view.isTransient());
+        this._tabbedPane.appendTab(view.viewId(), view.title(), new WebInspector.ViewManager._ContainerWidget(view), undefined, false, view.isCloseable() || view.isTransient(), index);
     },
 
     /**
@@ -674,14 +714,32 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
      */
     appendView: function(view, insertBefore)
     {
-        if (insertBefore)
-            throw new Error("Insert before in tabbed pane is not supported");
-        if (!this._tabbedPane.hasTab(view.viewId())) {
-            view[WebInspector.ViewManager._Location.symbol] = this;
-            this._manager._views.set(view.viewId(), view);
-            this._views.set(view.viewId(), view);
-            this._appendTab(view);
+        if (this._tabbedPane.hasTab(view.viewId()))
+            return;
+        view[WebInspector.ViewManager._Location.symbol] = this;
+        this._manager._views.set(view.viewId(), view);
+        this._views.set(view.viewId(), view);
+
+        var index = undefined;
+        var tabIds = this._tabbedPane.tabIds();
+        if (this._allowReorder) {
+            var orderSetting = this._tabOrderSetting.get();
+            var order = orderSetting[view.viewId()];
+            for (var i = 0; order && i < tabIds.length; ++i) {
+                if (orderSetting[tabIds[i]] && orderSetting[tabIds[i]] > order) {
+                    index = i;
+                    break;
+                }
+            }
+        } else if (insertBefore) {
+            for (var i = 0; i < tabIds.length; ++i) {
+                if (tabIds[i] === insertBefore.viewId()) {
+                    index = i;
+                    break;
+                }
+            }
         }
+        this._appendTab(view, index);
     },
 
     /**
@@ -693,10 +751,26 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
     showView: function(view, insertBefore)
     {
         this.appendView(view, insertBefore);
-        this._tabbedPane.focus();
         this._tabbedPane.selectTab(view.viewId());
+        this._tabbedPane.focus();
         return this._materializeWidget(view);
     },
+
+    /**
+     * @param {!WebInspector.View} view
+     * @override
+     */
+    removeView: function(view)
+    {
+        if (!this._tabbedPane.hasTab(view.viewId()))
+            return;
+
+        delete view[WebInspector.ViewManager._Location.symbol];
+        this._manager._views.delete(view.viewId());
+        this._views.delete(view.viewId());
+        this._tabbedPane.closeTab(view.viewId());
+    },
+
 
     /**
      * @param {!WebInspector.Event} event
@@ -744,8 +818,20 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
         return widget._materialize();
     },
 
+    /**
+     * @param {!WebInspector.Event} event
+     */
+    _persistTabOrder: function(event)
+    {
+        var tabIds = this._tabbedPane.tabIds();
+        var tabOrders = {};
+        for (var i = 0; i < tabIds.length; i++)
+            tabOrders[tabIds[i]] = (i + 1) * WebInspector.ViewManager._TabbedLocation.orderStep;
+        this._tabOrderSetting.set(tabOrders);
+    },
+
     __proto__: WebInspector.ViewManager._Location.prototype
-}
+};
 
 /**
  * @constructor
@@ -757,15 +843,16 @@ WebInspector.ViewManager._TabbedLocation.prototype = {
  */
 WebInspector.ViewManager._StackLocation = function(manager, revealCallback, location)
 {
-    this._vbox = new WebInspector.VBox();
-    WebInspector.ViewManager._Location.call(this, manager, this._vbox, revealCallback);
+    var vbox = new WebInspector.VBox();
+    WebInspector.ViewManager._Location.call(this, manager, vbox, revealCallback);
+    this._vbox = vbox;
 
     /** @type {!Map<string, !WebInspector.ViewManager._ExpandableContainerWidget>} */
     this._expandableContainers = new Map();
 
     if (location)
         this.appendApplicableItems(location);
-}
+};
 
 WebInspector.ViewManager._StackLocation.prototype = {
 
@@ -805,6 +892,22 @@ WebInspector.ViewManager._StackLocation.prototype = {
     },
 
     /**
+     * @param {!WebInspector.View} view
+     * @override
+     */
+    removeView: function(view)
+    {
+        var container = this._expandableContainers.get(view.viewId());
+        if (!container)
+            return;
+
+        container.detach();
+        this._expandableContainers.delete(view.viewId());
+        delete view[WebInspector.ViewManager._Location.symbol];
+        this._manager._views.delete(view.viewId());
+    },
+
+    /**
      * @override
      * @param {string} locationName
      */
@@ -815,7 +918,7 @@ WebInspector.ViewManager._StackLocation.prototype = {
     },
 
     __proto__: WebInspector.ViewManager._Location.prototype
-}
+};
 
 /**
  * @type {!WebInspector.ViewManager}

@@ -9,7 +9,7 @@
  */
 WebInspector.InplaceFormatterEditorAction = function()
 {
-}
+};
 
 WebInspector.InplaceFormatterEditorAction.prototype = {
     /**
@@ -70,6 +70,8 @@ WebInspector.InplaceFormatterEditorAction.prototype = {
             return false;
         if (uiSourceCode.project().type() === WebInspector.projectTypes.FileSystem)
             return true;
+        if (WebInspector.persistence.binding(uiSourceCode))
+            return true;
         return uiSourceCode.contentType().isStyleSheet()
             || uiSourceCode.project().type() === WebInspector.projectTypes.Snippets;
     },
@@ -114,4 +116,4 @@ WebInspector.InplaceFormatterEditorAction.prototype = {
             this._sourcesView.showSourceLocation(uiSourceCode, start[0], start[1]);
         }
     },
-}
+};

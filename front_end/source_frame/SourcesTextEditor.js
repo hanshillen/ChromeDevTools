@@ -22,13 +22,13 @@ WebInspector.SourcesTextEditor = function(delegate)
 
     this._delegate = delegate;
 
-    this.codeMirror().on("changes", this._changesForDelegate.bind(this));
+    this.codeMirror().on("changes", this._fireTextChanged.bind(this));
     this.codeMirror().on("cursorActivity", this._cursorActivity.bind(this));
     this.codeMirror().on("gutterClick", this._gutterClick.bind(this));
     this.codeMirror().on("scroll", this._scroll.bind(this));
     this.codeMirror().on("focus", this._focus.bind(this));
     this.codeMirror().on("blur", this._blur.bind(this));
-    this.codeMirror().on("beforeSelectionChange", this._beforeSelectionChangeForDelegate.bind(this));
+    this.codeMirror().on("beforeSelectionChange", this._fireBeforeSelectionChanged.bind(this));
     this.element.addEventListener("contextmenu", this._contextMenu.bind(this), false);
 
     this._blockIndentController = new WebInspector.SourcesTextEditor.BlockIndentController(this.codeMirror());
@@ -37,6 +37,9 @@ WebInspector.SourcesTextEditor = function(delegate)
     /** @type {!Array<string>} */
     this._gutters = ["CodeMirror-linenumbers"];
     this.codeMirror().setOption("gutters", this._gutters.slice());
+
+    this.codeMirror().setOption("electricChars", false);
+    this.codeMirror().setOption("smartIndent", false);
 
     /**
      * @this {WebInspector.SourcesTextEditor}
@@ -54,7 +57,7 @@ WebInspector.SourcesTextEditor = function(delegate)
 
     this._onUpdateEditorIndentation();
     this._setupWhitespaceHighlight();
-}
+};
 WebInspector.SourcesTextEditor.prototype = {
     /**
      * @return {boolean}
@@ -62,6 +65,16 @@ WebInspector.SourcesTextEditor.prototype = {
     _isSearchActive: function()
     {
         return !!this._tokenHighlighter.highlightedRegex();
+    },
+
+    /**
+     * @override
+     * @param {number} lineNumber
+     */
+    scrollToLine: function(lineNumber)
+    {
+        WebInspector.CodeMirrorTextEditor.prototype.scrollToLine.call(this, lineNumber);
+        this._scroll();
     },
 
     /**
@@ -197,7 +210,7 @@ WebInspector.SourcesTextEditor.prototype = {
      */
     setGutterDecoration: function(lineNumber, type, element)
     {
-        console.assert(this._gutters.indexOf(type) !== -1, "Cannot decorate unexisting gutter.")
+        console.assert(this._gutters.indexOf(type) !== -1, "Cannot decorate unexisting gutter.");
         this.codeMirror().setGutterMarker(lineNumber, type, element);
     },
 
@@ -305,7 +318,7 @@ WebInspector.SourcesTextEditor.prototype = {
     editRange: function(range, text, origin)
     {
         var newRange = WebInspector.CodeMirrorTextEditor.prototype.editRange.call(this, range, text, origin);
-        this._delegate.onTextChanged(range, newRange);
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.TextChanged, { oldRange: range, newRange: newRange });
 
         if (WebInspector.moduleSetting("textEditorAutoDetectIndent").get())
             this._onUpdateEditorIndentation();
@@ -340,7 +353,7 @@ WebInspector.SourcesTextEditor.prototype = {
                     return CodeMirror.Pass;
                 var pos = codeMirror.getCursor("head");
                 codeMirror.replaceRange(indent.substring(pos.ch % indent.length), codeMirror.getCursor());
-            }
+            };
         }
 
         this.codeMirror().setOption("extraKeys", extraKeys);
@@ -380,7 +393,7 @@ WebInspector.SourcesTextEditor.prototype = {
      * @param {!CodeMirror} codeMirror
      * @param {!Array.<!CodeMirror.ChangeObject>} changes
      */
-    _changesForDelegate: function(codeMirror, changes)
+    _fireTextChanged: function(codeMirror, changes)
     {
         if (!changes.length || this._muteTextChangedEvent)
             return;
@@ -398,10 +411,8 @@ WebInspector.SourcesTextEditor.prototype = {
             }
         }
 
-        for (var i = 0; i < edits.length; ++i) {
-            var edit = edits[i];
-            this._delegate.onTextChanged(edit.oldRange, edit.newRange);
-        }
+        for (var i = 0; i < edits.length; ++i)
+            this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.TextChanged, edits[i]);
     },
 
     _cursorActivity: function()
@@ -411,7 +422,7 @@ WebInspector.SourcesTextEditor.prototype = {
 
         var start = this.codeMirror().getCursor("anchor");
         var end = this.codeMirror().getCursor("head");
-        this._delegate.selectionChanged(WebInspector.CodeMirrorUtils.toRange(start, end));
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.SelectionChanged, WebInspector.CodeMirrorUtils.toRange(start, end));
     },
 
     /**
@@ -422,30 +433,30 @@ WebInspector.SourcesTextEditor.prototype = {
     {
         if (from && to && from.equal(to))
             return;
-        this._delegate.onJumpToPosition(from, to);
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.JumpHappened, { from: from, to: to });
     },
 
     _scroll: function()
     {
         var topmostLineNumber = this.codeMirror().lineAtHeight(this.codeMirror().getScrollInfo().top, "local");
-        this._delegate.scrollChanged(topmostLineNumber);
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.ScrollChanged, topmostLineNumber);
     },
 
     _focus: function()
     {
-        this._delegate.editorFocused();
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.EditorFocused);
     },
 
     _blur: function()
     {
-        this._delegate.editorBlurred();
+        this.dispatchEventToListeners(WebInspector.SourcesTextEditor.Events.EditorBlurred);
     },
 
     /**
      * @param {!CodeMirror} codeMirror
      * @param {{ranges: !Array.<{head: !CodeMirror.Pos, anchor: !CodeMirror.Pos}>}} selection
      */
-    _beforeSelectionChangeForDelegate: function(codeMirror, selection)
+    _fireBeforeSelectionChanged: function(codeMirror, selection)
     {
         if (!this._isHandlingMouseDownEvent)
             return;
@@ -482,11 +493,13 @@ WebInspector.SourcesTextEditor.prototype = {
     /**
      * @override
      * @param {string} mimeType
+     * @return {!Promise}
      */
     setMimeType: function(mimeType)
     {
         this._mimeType = mimeType;
-        WebInspector.CodeMirrorTextEditor.prototype.setMimeType.call(this, this._applyWhitespaceMimetype(mimeType));
+        return WebInspector.CodeMirrorTextEditor.prototype.setMimeType.call(this, mimeType)
+            .then(() => this._codeMirror.setOption("mode", this._applyWhitespaceMimetype(mimeType)));
     },
 
     _updateWhitespace: function()
@@ -602,42 +615,27 @@ WebInspector.SourcesTextEditor.prototype = {
     },
 
     __proto__: WebInspector.CodeMirrorTextEditor.prototype
-}
+};
 
 /** @typedef {{lineNumber: number, event: !Event}} */
 WebInspector.SourcesTextEditor.GutterClickEventData;
 
 /** @enum {symbol} */
 WebInspector.SourcesTextEditor.Events = {
-    GutterClick: Symbol("GutterClick")
-}
+    GutterClick: Symbol("GutterClick"),
+    TextChanged: Symbol("TextChanged"),
+    SelectionChanged: Symbol("SelectionChanged"),
+    ScrollChanged: Symbol("ScrollChanged"),
+    EditorFocused: Symbol("EditorFocused"),
+    EditorBlurred: Symbol("EditorBlurred"),
+    JumpHappened: Symbol("JumpHappened")
+};
 
 /**
  * @interface
  */
-WebInspector.SourcesTextEditorDelegate = function() { }
+WebInspector.SourcesTextEditorDelegate = function() { };
 WebInspector.SourcesTextEditorDelegate.prototype = {
-
-    /**
-     * @param {!WebInspector.TextRange} oldRange
-     * @param {!WebInspector.TextRange} newRange
-     */
-    onTextChanged: function(oldRange, newRange) { },
-
-    /**
-     * @param {!WebInspector.TextRange} textRange
-     */
-    selectionChanged: function(textRange) { },
-
-    /**
-     * @param {number} lineNumber
-     */
-    scrollChanged: function(lineNumber) { },
-
-    editorFocused: function() { },
-
-    editorBlurred: function() { },
-
     /**
      * @param {!WebInspector.ContextMenu} contextMenu
      * @param {number} lineNumber
@@ -652,13 +650,7 @@ WebInspector.SourcesTextEditorDelegate.prototype = {
      * @return {!Promise}
      */
     populateTextAreaContextMenu: function(contextMenu, lineNumber, columnNumber) { },
-
-    /**
-     * @param {?WebInspector.TextRange} from
-     * @param {?WebInspector.TextRange} to
-     */
-    onJumpToPosition: function(from, to) { }
-}
+};
 
 /**
  * @param {!CodeMirror} codeMirror
@@ -680,7 +672,7 @@ CodeMirror.commands.smartNewlineAndIndent = function(codeMirror)
         codeMirror.replaceSelections(replacements);
         codeMirror._codeMirrorTextEditor._onAutoAppendedSpaces();
     }
-}
+};
 
 /**
  * @return {!Object|undefined}
@@ -690,7 +682,7 @@ CodeMirror.commands.sourcesDismiss = function(codemirror)
     if (codemirror.listSelections().length === 1 && codemirror._codeMirrorTextEditor._isSearchActive())
         return CodeMirror.Pass;
     return CodeMirror.commands.dismiss(codemirror);
-}
+};
 
 /**
  * @constructor
@@ -699,7 +691,7 @@ CodeMirror.commands.sourcesDismiss = function(codemirror)
 WebInspector.SourcesTextEditor.BlockIndentController = function(codeMirror)
 {
     codeMirror.addKeyMap(this);
-}
+};
 
 WebInspector.SourcesTextEditor.BlockIndentController.prototype = {
     name: "blockIndentKeymap",
@@ -788,7 +780,7 @@ WebInspector.SourcesTextEditor.BlockIndentController.prototype = {
         codeMirror.setSelections(updatedSelections);
         codeMirror.replaceSelections(replacements);
     }
-}
+};
 
 /**
  * @param {!Array.<string>} lines
@@ -828,7 +820,7 @@ WebInspector.SourcesTextEditor._guessIndentationLevel = function(lines)
     if (minimumIndent === Infinity)
         return WebInspector.moduleSetting("textEditorIndent").get();
     return " ".repeat(minimumIndent);
-}
+};
 
 /**
  * @constructor
@@ -839,7 +831,7 @@ WebInspector.SourcesTextEditor.TokenHighlighter = function(textEditor, codeMirro
 {
     this._textEditor = textEditor;
     this._codeMirror = codeMirror;
-}
+};
 
 WebInspector.SourcesTextEditor.TokenHighlighter.prototype = {
     /**
@@ -991,7 +983,7 @@ WebInspector.SourcesTextEditor.TokenHighlighter.prototype = {
             selectionStart: selectionStart
         };
     }
-}
+};
 
 WebInspector.SourcesTextEditor.LinesToScanForIndentationGuessing = 1000;
 WebInspector.SourcesTextEditor.MaximumNumberOfWhitespacesPerSingleSpan = 16;

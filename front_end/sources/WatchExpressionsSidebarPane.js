@@ -57,7 +57,7 @@ WebInspector.WatchExpressionsSidebarPane = function()
     WebInspector.context.addFlavorChangeListener(WebInspector.DebuggerModel.CallFrame, this.update, this);
     this._linkifier = new WebInspector.Linkifier();
     this.update();
-}
+};
 
 WebInspector.WatchExpressionsSidebarPane.prototype = {
     /**
@@ -184,8 +184,11 @@ WebInspector.WatchExpressionsSidebarPane.prototype = {
         if (this._watchExpressions.length > 1)
             contextMenu.appendItem(WebInspector.UIString.capitalize("Delete ^all ^watch ^expressions"), this._deleteAllButtonClicked.bind(this));
 
+        var target = event.deepElementFromPoint();
+        if (!target)
+            return;
         for (var watchExpression of this._watchExpressions)
-            if (watchExpression.element().containsEventPoint(event))
+            if (watchExpression.element().isSelfOrAncestor(target))
                 watchExpression._populateContextMenu(contextMenu, event);
     },
 
@@ -227,7 +230,7 @@ WebInspector.WatchExpressionsSidebarPane.prototype = {
     },
 
     __proto__: WebInspector.ThrottledWidget.prototype
-}
+};
 
 /**
  * @constructor
@@ -246,14 +249,14 @@ WebInspector.WatchExpression = function(expression, expandController, linkifier)
 
     this._createWatchExpression(null);
     this.update();
-}
+};
 
 WebInspector.WatchExpression._watchObjectGroupId = "watch-group";
 
 /** @enum {symbol} */
 WebInspector.WatchExpression.Events = {
     ExpressionUpdated: Symbol("ExpressionUpdated")
-}
+};
 
 WebInspector.WatchExpression.prototype = {
 
@@ -367,7 +370,7 @@ WebInspector.WatchExpression.prototype = {
         var titleElement = headerElement.createChild("div", "watch-expression-title");
         this._nameElement = WebInspector.ObjectPropertiesSection.createNameElement(this._expression);
         if (!!exceptionDetails || !result) {
-            this._valueElement = createElementWithClass("span", "error-message value");
+            this._valueElement = createElementWithClass("span", "watch-expression-error value");
             titleElement.classList.add("dimmed");
             this._valueElement.textContent = WebInspector.UIString("<not available>");
         } else {
@@ -446,7 +449,8 @@ WebInspector.WatchExpression.prototype = {
         if (!this.isEditing() && this._result && (this._result.type === "number" || this._result.type === "string"))
             contextMenu.appendItem(WebInspector.UIString.capitalize("Copy ^value"), this._copyValueButtonClicked.bind(this));
 
-        if (this._valueElement.containsEventPoint(event))
+        var target = event.deepElementFromPoint();
+        if (target && this._valueElement.isSelfOrAncestor(target))
             contextMenu.appendApplicableItems(this._result);
     },
 
@@ -456,4 +460,4 @@ WebInspector.WatchExpression.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};

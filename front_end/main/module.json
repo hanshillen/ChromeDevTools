@@ -353,13 +353,13 @@
         "extensions",
         "host",
         "platform",
-        "sdk"
+        "sdk",
+        "persistence"
     ],
     "scripts": [
         "RenderingOptions.js",
         "SimpleApp.js",
         "OverlayController.js",
-        "Connections.js",
         "Main.js"
     ],
     "resources": [

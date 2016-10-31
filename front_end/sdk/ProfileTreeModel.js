@@ -22,7 +22,7 @@ WebInspector.ProfileNode = function(callFrame)
     this.parent = null;
     /** @type {!Array<!WebInspector.ProfileNode>} */
     this.children = [];
-}
+};
 
 WebInspector.ProfileNode.prototype = {
     /**
@@ -64,20 +64,27 @@ WebInspector.ProfileNode.prototype = {
     {
         return this.callFrame.columnNumber;
     }
-}
+};
 
 /**
  * @constructor
- * @param {!WebInspector.ProfileNode} root
  */
-WebInspector.ProfileTreeModel = function(root)
+WebInspector.ProfileTreeModel = function()
 {
-    this.root = root;
-    this.total = this._calculateTotals(this.root);
-    this._assignDepthsAndParents();
-}
+};
 
 WebInspector.ProfileTreeModel.prototype = {
+    /**
+     * @param {!WebInspector.ProfileNode} root
+     * @protected
+     */
+    initialize: function(root)
+    {
+        this.root = root;
+        this._assignDepthsAndParents();
+        this.total = this._calculateTotals(this.root);
+    },
+
     _assignDepthsAndParents: function()
     {
         var root = this.root;
@@ -103,12 +110,23 @@ WebInspector.ProfileTreeModel.prototype = {
     },
 
     /**
-     * @param {!WebInspector.ProfileNode} node
+     * @param {!WebInspector.ProfileNode} root
      * @return {number}
      */
-    _calculateTotals: function(node)
+    _calculateTotals: function(root)
     {
-        node.total = node.children.reduce((acc, child) => acc + this._calculateTotals(child), node.self);
-        return node.total;
+        var nodesToTraverse = [root];
+        var dfsList = [];
+        while (nodesToTraverse.length) {
+            var node = nodesToTraverse.pop();
+            node.total = node.self;
+            dfsList.push(node);
+            nodesToTraverse.push(...node.children);
+        }
+        while (dfsList.length > 1) {
+            var node = dfsList.pop();
+            node.parent.total += node.total;
+        }
+        return root.total;
     }
-}
+};

@@ -38,11 +38,37 @@ var _loadedScripts = {};
 // once Closure provides standard externs for Map et al.
 for (var k of []) {}
 
+(function() {
+    var baseUrl = self.location ? self.location.origin + self.location.pathname : "";
+    self._importScriptPathPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("/") + 1);
+})();
+
+/**
+ * @constructor
+ * @param {!Array.<!Runtime.ModuleDescriptor>} descriptors
+ */
+function Runtime(descriptors)
+{
+    /** @type {!Array<!Runtime.Module>} */
+    this._modules = [];
+    /** @type {!Object<string, !Runtime.Module>} */
+    this._modulesMap = {};
+    /** @type {!Array<!Runtime.Extension>} */
+    this._extensions = [];
+    /** @type {!Object<string, !function(new:Object)>} */
+    this._cachedTypeClasses = {};
+    /** @type {!Object<string, !Runtime.ModuleDescriptor>} */
+    this._descriptorsMap = {};
+
+    for (var i = 0; i < descriptors.length; ++i)
+        this._registerModule(descriptors[i]);
+}
+
 /**
  * @param {string} url
  * @return {!Promise.<string>}
  */
-function loadResourcePromise(url)
+Runtime.loadResourcePromise = function(url)
 {
     return new Promise(load);
 
@@ -71,14 +97,14 @@ function loadResourcePromise(url)
         }
         xhr.send(null);
     }
-}
+};
 
 /**
  * http://tools.ietf.org/html/rfc3986#section-5.2.4
  * @param {string} path
  * @return {string}
  */
-function normalizePath(path)
+Runtime.normalizePath = function(path)
 {
     if (path.indexOf("..") === -1 && path.indexOf(".") === -1)
         return path;
@@ -103,14 +129,14 @@ function normalizePath(path)
         normalizedPath = normalizedPath + "/";
 
     return normalizedPath;
-}
+};
 
 /**
  * @param {!Array.<string>} scriptNames
  * @param {string=} base
  * @return {!Promise.<undefined>}
  */
-function loadScriptsPromise(scriptNames, base)
+Runtime._loadScriptsPromise = function(scriptNames, base)
 {
     /** @type {!Array<!Promise<undefined>>} */
     var promises = [];
@@ -126,12 +152,12 @@ function loadScriptsPromise(scriptNames, base)
         var pathIndex = sourceURL.indexOf("/", schemaIndex);
         if (pathIndex === -1)
             pathIndex = sourceURL.length;
-        sourceURL = sourceURL.substring(0, pathIndex) + normalizePath(sourceURL.substring(pathIndex));
+        sourceURL = sourceURL.substring(0, pathIndex) + Runtime.normalizePath(sourceURL.substring(pathIndex));
 
         if (_loadedScripts[sourceURL])
             continue;
         urls.push(sourceURL);
-        promises.push(loadResourcePromise(sourceURL).then(scriptSourceLoaded.bind(null, i), scriptSourceLoaded.bind(null, i, undefined)));
+        promises.push(Runtime.loadResourcePromise(sourceURL).then(scriptSourceLoaded.bind(null, i), scriptSourceLoaded.bind(null, i, undefined)));
     }
     return Promise.all(promises).then(undefined);
 
@@ -163,33 +189,7 @@ function loadScriptsPromise(scriptNames, base)
         }
         self.eval(scriptSource + "\n//# sourceURL=" + sourceURL);
     }
-}
-
-(function() {
-    var baseUrl = self.location ? self.location.origin + self.location.pathname : "";
-    self._importScriptPathPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("/") + 1);
-})();
-
-/**
- * @constructor
- * @param {!Array.<!Runtime.ModuleDescriptor>} descriptors
- */
-function Runtime(descriptors)
-{
-    /** @type {!Array<!Runtime.Module>} */
-    this._modules = [];
-    /** @type {!Object<string, !Runtime.Module>} */
-    this._modulesMap = {};
-    /** @type {!Array<!Runtime.Extension>} */
-    this._extensions = [];
-    /** @type {!Object<string, !function(new:Object)>} */
-    this._cachedTypeClasses = {};
-    /** @type {!Object<string, !Runtime.ModuleDescriptor>} */
-    this._descriptorsMap = {};
-
-    for (var i = 0; i < descriptors.length; ++i)
-        this._registerModule(descriptors[i]);
-}
+};
 
 /**
  * @type {!Object.<string, string>}
@@ -211,7 +211,7 @@ Runtime.cachedResources = { __proto__: null };
  */
 Runtime.loadResourceIntoCache = function(url, appendSourceURL)
 {
-    return loadResourcePromise(url).then(cacheResource.bind(this, url), cacheResource.bind(this, url, undefined));
+    return Runtime.loadResourcePromise(url).then(cacheResource.bind(this, url), cacheResource.bind(this, url, undefined));
 
     /**
      * @param {string} path
@@ -226,7 +226,7 @@ Runtime.loadResourceIntoCache = function(url, appendSourceURL)
         var sourceURL = appendSourceURL ? Runtime.resolveSourceURL(path) : "";
         Runtime.cachedResources[path] = content + sourceURL;
     }
-}
+};
 
 /**
  * @param {string} appName
@@ -246,7 +246,7 @@ Runtime.startApplication = function(appName)
     if (applicationDescriptor)
         applicationPromise = Promise.resolve(applicationDescriptor);
     else
-        applicationPromise = loadResourcePromise(appName + ".json").then(JSON.parse.bind(JSON));
+        applicationPromise = Runtime.loadResourcePromise(appName + ".json").then(JSON.parse.bind(JSON));
 
     return applicationPromise.then(parseModuleDescriptors);
 
@@ -266,7 +266,7 @@ Runtime.startApplication = function(appName)
             if (moduleJSON)
                 moduleJSONPromises.push(Promise.resolve(moduleJSON));
             else
-                moduleJSONPromises.push(loadResourcePromise(name + "/module.json").then(JSON.parse.bind(JSON)));
+                moduleJSONPromises.push(Runtime.loadResourcePromise(name + "/module.json").then(JSON.parse.bind(JSON)));
             if (descriptor["type"] === "autostart")
                 coreModuleNames.push(name);
         }
@@ -290,7 +290,7 @@ Runtime.startApplication = function(appName)
             return Promise.resolve();
         }
     }
-}
+};
 
 /**
  * @param {string} appName
@@ -304,7 +304,7 @@ Runtime.startWorker = function(appName)
     {
         self.postMessage("workerReady");
     }
-}
+};
 
 /** @type {?function(!MessagePort)} */
 Runtime._sharedWorkerNewPortCallback = null;
@@ -334,8 +334,8 @@ Runtime.startSharedWorker = function(appName)
             else
                 Runtime._sharedWorkerConnectedPorts.push(newPort);
         }
-    }
-}
+    };
+};
 
 /**
  * @param {function(!MessagePort)} callback
@@ -347,7 +347,7 @@ Runtime.setSharedWorkerNewPortCallback = function(callback)
         var port = Runtime._sharedWorkerConnectedPorts.shift();
         callback.call(null, port);
     }
-}
+};
 
 /**
  * @param {string} name
@@ -356,22 +356,7 @@ Runtime.setSharedWorkerNewPortCallback = function(callback)
 Runtime.queryParam = function(name)
 {
     return Runtime._queryParamsObject[name] || null;
-}
-
-/**
- * @param {!Array.<string>} banned
- * @return {string}
- */
-Runtime.constructQueryParams = function(banned)
-{
-    var params = [];
-    for (var key in Runtime._queryParamsObject) {
-        if (!key || banned.indexOf(key) !== -1)
-            continue;
-        params.push(key + "=" + Runtime._queryParamsObject[key]);
-    }
-    return params.length ? "?" + params.join("&") : "";
-}
+};
 
 /**
  * @return {!Object}
@@ -384,7 +369,7 @@ Runtime._experimentsSetting = function()
         console.error("Failed to parse localStorage['experiments']");
         return {};
     }
-}
+};
 
 Runtime._console = console;
 Runtime._originalAssert = console.assert;
@@ -393,7 +378,7 @@ Runtime._assert = function(value, message)
     if (value)
         return;
     Runtime._originalAssert.call(Runtime._console, value, message + " " + new Error().stack);
-}
+};
 
 Runtime._platform = "";
 
@@ -403,7 +388,7 @@ Runtime._platform = "";
 Runtime.setPlatform = function(platform)
 {
     Runtime._platform = platform;
-}
+};
 
 Runtime.prototype = {
     useTestBase: function()
@@ -604,7 +589,7 @@ Runtime.prototype = {
         constructorFunction[Runtime._instanceSymbol] = instance;
         return instance;
     }
-}
+};
 
 /**
  * @constructor
@@ -640,7 +625,7 @@ Runtime.ModuleDescriptor = function()
      * @type {boolean|undefined}
      */
     this.remote;
-}
+};
 
 /**
  * @constructor
@@ -666,7 +651,7 @@ Runtime.ExtensionDescriptor = function()
      * @type {!Array.<string>|undefined}
      */
     this.contextTypes;
-}
+};
 
 /**
  * @constructor
@@ -690,7 +675,7 @@ Runtime.Module = function(manager, descriptor)
         this._extensions.push(extension);
     }
     this._loadedForTest = false;
-}
+};
 
 Runtime.Module.prototype = {
     /**
@@ -770,7 +755,7 @@ Runtime.Module.prototype = {
     {
         if (!this._descriptor.scripts || !this._descriptor.scripts.length)
             return Promise.resolve();
-        return loadScriptsPromise(this._descriptor.scripts.map(this._modularizeURL, this), this._remoteBase());
+        return Runtime._loadScriptsPromise(this._descriptor.scripts.map(this._modularizeURL, this), this._remoteBase());
     },
 
     /**
@@ -778,7 +763,7 @@ Runtime.Module.prototype = {
      */
     _modularizeURL: function(resourceName)
     {
-        return normalizePath(this._name + "/" + resourceName);
+        return Runtime.normalizePath(this._name + "/" + resourceName);
     },
 
     /**
@@ -803,7 +788,7 @@ Runtime.Module.prototype = {
             return base + this._modularizeURL(url);
         }
     }
-}
+};
 
 /**
  * @param {!Object} descriptor
@@ -824,7 +809,7 @@ Runtime._isDescriptorEnabled = function(descriptor)
     if (condition && condition.startsWith("!") && Runtime.queryParam(condition.substring(1)))
         return false;
     return true;
-}
+};
 
 /**
  * @constructor
@@ -844,7 +829,7 @@ Runtime.Extension = function(module, descriptor)
      */
     this._className = descriptor.className || null;
     this._factoryName = descriptor.factoryName || null;
-}
+};
 
 Runtime.Extension.prototype = {
     /**
@@ -938,7 +923,7 @@ Runtime.Extension.prototype = {
         }
         return false;
     }
-}
+};
 
 /**
  * @constructor
@@ -949,7 +934,7 @@ Runtime.ExperimentsSupport = function()
     this._experiments = [];
     this._experimentNames = {};
     this._enabledTransiently = {};
-}
+};
 
 Runtime.ExperimentsSupport.prototype = {
     /**
@@ -1070,7 +1055,7 @@ Runtime.ExperimentsSupport.prototype = {
     {
         Runtime._assert(this._experimentNames[experimentName], "Unknown experiment " + experimentName);
     }
-}
+};
 
 /**
  * @constructor
@@ -1085,7 +1070,7 @@ Runtime.Experiment = function(experiments, name, title, hidden)
     this.title = title;
     this.hidden = hidden;
     this._experiments = experiments;
-}
+};
 
 Runtime.Experiment.prototype = {
     /**
@@ -1103,7 +1088,7 @@ Runtime.Experiment.prototype = {
     {
         this._experiments.setEnabled(this.name, enabled);
     }
-}
+};
 
 {(function parseQueryParameters()
 {
@@ -1144,7 +1129,31 @@ Runtime.resolveSourceURL = function(path)
         sourceURL = sourceURL.replace(self.location.search, "");
     sourceURL = sourceURL.substring(0, sourceURL.lastIndexOf("/") + 1) + path;
     return "\n/*# sourceURL=" + sourceURL + " */";
-}
+};
+
+/**
+ * @interface
+ */
+function ServicePort() { }
+
+ServicePort.prototype = {
+    /**
+     * @param {function(string)} messageHandler
+     * @param {function(string)} closeHandler
+     */
+    setHandlers: function(messageHandler, closeHandler) { },
+
+    /**
+     * @param {string} message
+     * @return {!Promise<boolean>}
+     */
+    send: function(message) { },
+
+    /**
+     * @return {!Promise<boolean>}
+     */
+    close: function() { }
+};
 
 /** @type {!Runtime} */
 var runtime;

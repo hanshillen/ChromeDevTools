@@ -62,7 +62,7 @@ WebInspector.CompilerScriptMapping = function(debuggerModel, workspace, networkM
         workspace.addEventListener(WebInspector.Workspace.Events.UISourceCodeAdded, this._uiSourceCodeAddedToWorkspace, this),
         debuggerModel.addEventListener(WebInspector.DebuggerModel.Events.GlobalObjectCleared, this._debuggerReset, this)
     ];
-}
+};
 
 WebInspector.CompilerScriptMapping._originSymbol = Symbol("origin");
 
@@ -73,7 +73,7 @@ WebInspector.CompilerScriptMapping._originSymbol = Symbol("origin");
 WebInspector.CompilerScriptMapping.uiSourceCodeOrigin = function(uiSourceCode)
 {
     return uiSourceCode[WebInspector.CompilerScriptMapping._originSymbol] || null;
-}
+};
 
 WebInspector.CompilerScriptMapping.prototype = {
     /**
@@ -129,15 +129,12 @@ WebInspector.CompilerScriptMapping.prototype = {
     {
         if (uiSourceCode.project().type() === WebInspector.projectTypes.Service)
             return null;
-        var networkURL = this._networkMapping.networkURL(uiSourceCode);
-        if (!networkURL)
-            return null;
-        var sourceMap = this._sourceMapForURL.get(networkURL);
+        var sourceMap = this._sourceMapForURL.get(uiSourceCode.url());
         if (!sourceMap)
             return null;
         var script = /** @type {!WebInspector.Script} */ (this._scriptForSourceMap.get(sourceMap));
         console.assert(script);
-        var entry = sourceMap.firstSourceLineMapping(networkURL, lineNumber);
+        var entry = sourceMap.firstSourceLineMapping(uiSourceCode.url(), lineNumber);
         if (!entry)
             return null;
         return this._debuggerModel.createRawLocation(script, entry.lineNumber, entry.columnNumber);
@@ -232,17 +229,17 @@ WebInspector.CompilerScriptMapping.prototype = {
         this._scriptForSourceMap.set(sourceMap, script);
 
         // Report sources.
-        var sourceURLs = sourceMap.sourceURLs();
         var missingSources = [];
-        for (var i = 0; i < sourceURLs.length; ++i) {
-            var sourceURL = sourceURLs[i];
+        for (var sourceURL of sourceMap.sourceURLs()) {
             if (this._sourceMapForURL.get(sourceURL))
                 continue;
             this._sourceMapForURL.set(sourceURL, sourceMap);
             var uiSourceCode = this._networkMapping.uiSourceCodeForScriptURL(sourceURL, script);
-            if (!uiSourceCode && !this._networkMapping.hasMappingForNetworkURL(sourceURL)) {
+            if (!uiSourceCode) {
                 var contentProvider = sourceMap.sourceContentProvider(sourceURL, WebInspector.resourceTypes.SourceMapScript);
-                uiSourceCode = this._networkProject.addFile(contentProvider, WebInspector.ResourceTreeFrame.fromScript(script), script.isContentScript());
+                var embeddedContent = sourceMap.embeddedContentByURL(sourceURL);
+                var embeddedContentLength = typeof embeddedContent === "string" ? embeddedContent.length : null;
+                uiSourceCode = this._networkProject.addFile(contentProvider, WebInspector.ResourceTreeFrame.fromScript(script), script.isContentScript(), embeddedContentLength);
                 uiSourceCode[WebInspector.CompilerScriptMapping._originSymbol] = script.sourceURL;
             }
             if (uiSourceCode) {
@@ -280,13 +277,10 @@ WebInspector.CompilerScriptMapping.prototype = {
      */
     uiLineHasMapping: function(uiSourceCode, lineNumber)
     {
-        var networkURL = this._networkMapping.networkURL(uiSourceCode);
-        if (!networkURL)
-            return true;
-        var sourceMap = this._sourceMapForURL.get(networkURL);
+        var sourceMap = this._sourceMapForURL.get(uiSourceCode.url());
         if (!sourceMap)
             return true;
-        return !!sourceMap.firstSourceLineMapping(networkURL, lineNumber);
+        return !!sourceMap.firstSourceLineMapping(uiSourceCode.url(), lineNumber);
     },
 
     /**
@@ -311,8 +305,7 @@ WebInspector.CompilerScriptMapping.prototype = {
     _uiSourceCodeAddedToWorkspace: function(event)
     {
         var uiSourceCode = /** @type {!WebInspector.UISourceCode} */ (event.data);
-        var networkURL = this._networkMapping.networkURL(uiSourceCode);
-        if (!networkURL || !this._sourceMapForURL.get(networkURL))
+        if (!this._sourceMapForURL.get(uiSourceCode.url()))
             return;
         this._bindUISourceCode(uiSourceCode);
     },
@@ -370,9 +363,8 @@ WebInspector.CompilerScriptMapping.prototype = {
             var script = this._scriptForSourceMap.get(sourceMap);
             if (!script)
                 return;
-            var sourceURLs = sourceMap.sourceURLs();
-            for (var i = 0; i < sourceURLs.length; ++i) {
-                var uiSourceCode = this._networkMapping.uiSourceCodeForScriptURL(sourceURLs[i], script);
+            for (var sourceURL of sourceMap.sourceURLs()) {
+                var uiSourceCode = this._networkMapping.uiSourceCodeForScriptURL(sourceURL, script);
                 if (uiSourceCode)
                     this._unbindUISourceCode(uiSourceCode);
             }
@@ -381,7 +373,7 @@ WebInspector.CompilerScriptMapping.prototype = {
         this._sourceMapForURL.valuesArray().forEach(unbindSourceMapSources.bind(this));
 
         this._sourceMapLoadingPromises.clear();
-        this._sourceMapForScriptId.clear()
+        this._sourceMapForScriptId.clear();
         this._scriptForSourceMap.clear();
         this._sourceMapForURL.clear();
     },
@@ -392,7 +384,7 @@ WebInspector.CompilerScriptMapping.prototype = {
         this._debuggerReset();
         this._stubProject.dispose();
     }
-}
+};
 
 /**
  * @param {!WebInspector.Target} target
@@ -401,4 +393,4 @@ WebInspector.CompilerScriptMapping.prototype = {
 WebInspector.CompilerScriptMapping.projectIdForTarget = function(target)
 {
     return "compiler-script-project:" + target.id();
-}
+};

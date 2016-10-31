@@ -31,7 +31,7 @@ WebInspector.EmulatedDevice = function()
 
     /** @type {?Runtime.Extension} */
     this._extension = null;
-}
+};
 
 /** @typedef {!{title: string, orientation: string, insets: !Insets, image: ?string}} */
 WebInspector.EmulatedDevice.Mode;
@@ -48,18 +48,18 @@ WebInspector.EmulatedDevice.Type = {
     Notebook: "notebook",
     Desktop: "desktop",
     Unknown: "unknown"
-}
+};
 
 WebInspector.EmulatedDevice.Capability = {
     Touch: "touch",
     Mobile: "mobile"
-}
+};
 
 WebInspector.EmulatedDevice._Show = {
     Always: "Always",
     Default: "Default",
     Never: "Never"
-}
+};
 
 /**
  * @param {*} json
@@ -139,7 +139,8 @@ WebInspector.EmulatedDevice.fromJSONV1 = function(json)
         var result = new WebInspector.EmulatedDevice();
         result.title = /** @type {string} */ (parseValue(json, "title", "string"));
         result.type = /** @type {string} */ (parseValue(json, "type", "string"));
-        result.userAgent = /** @type {string} */ (parseValue(json, "user-agent", "string"));
+        var rawUserAgent = /** @type {string} */ (parseValue(json, "user-agent", "string"));
+        result.userAgent = WebInspector.MultitargetNetworkManager.patchUserAgentWithChromeVersion(rawUserAgent);
 
         var capabilities = parseValue(json, "capabilities", "object", []);
         if (!Array.isArray(capabilities))
@@ -185,7 +186,7 @@ WebInspector.EmulatedDevice.fromJSONV1 = function(json)
     } catch (e) {
         return null;
     }
-}
+};
 
 /**
  * @param {!WebInspector.EmulatedDevice} device1
@@ -201,7 +202,7 @@ WebInspector.EmulatedDevice.deviceComparator = function(device1, device2)
     if (order2 > order1)
         return -1;
     return device1.title < device2.title ? -1 : (device1.title > device2.title ? 1 : 0);
-}
+};
 
 WebInspector.EmulatedDevice.prototype = {
     /**
@@ -369,7 +370,7 @@ WebInspector.EmulatedDevice.prototype = {
     {
         return this.capabilities.indexOf(WebInspector.EmulatedDevice.Capability.Mobile) !== -1;
     }
-}
+};
 
 
 /**
@@ -393,13 +394,13 @@ WebInspector.EmulatedDevicesList = function()
     this._custom = [];
     if (!this._listFromJSONV1(this._customSetting.get(), this._custom))
         this.saveCustomDevices();
-}
+};
 
 /** @enum {symbol} */
 WebInspector.EmulatedDevicesList.Events = {
     CustomDevicesUpdated: Symbol("CustomDevicesUpdated"),
     StandardDevicesUpdated: Symbol("StandardDevicesUpdated")
-}
+};
 
 WebInspector.EmulatedDevicesList.prototype = {
     _updateStandardDevices: function()
@@ -512,7 +513,7 @@ WebInspector.EmulatedDevicesList.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /** @type {?WebInspector.EmulatedDevicesList} */
 WebInspector.EmulatedDevicesList._instance;
@@ -525,4 +526,4 @@ WebInspector.EmulatedDevicesList.instance = function()
     if (!WebInspector.EmulatedDevicesList._instance)
         WebInspector.EmulatedDevicesList._instance = new WebInspector.EmulatedDevicesList();
     return /** @type {!WebInspector.EmulatedDevicesList} */ (WebInspector.EmulatedDevicesList._instance);
-}
+};

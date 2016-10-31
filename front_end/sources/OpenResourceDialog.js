@@ -15,7 +15,8 @@ WebInspector.OpenResourceDialog = function(sourcesView, defaultScores, history)
 {
     WebInspector.FilteredUISourceCodeListDelegate.call(this, defaultScores, history);
     this._sourcesView = sourcesView;
-}
+    this.populate();
+};
 
 WebInspector.OpenResourceDialog.prototype = {
 
@@ -64,7 +65,7 @@ WebInspector.OpenResourceDialog.prototype = {
     },
 
     __proto__: WebInspector.FilteredUISourceCodeListDelegate.prototype
-}
+};
 
 /**
  * @param {!WebInspector.SourcesView} sourcesView
@@ -74,10 +75,11 @@ WebInspector.OpenResourceDialog.prototype = {
  */
 WebInspector.OpenResourceDialog.show = function(sourcesView, query, defaultScores, history)
 {
-    var filteredItemSelectionDialog = new WebInspector.FilteredListWidget(new WebInspector.OpenResourceDialog(sourcesView, defaultScores, history));
+    WebInspector.OpenResourceDialog._instanceForTest = new WebInspector.OpenResourceDialog(sourcesView, defaultScores, history);
+    var filteredItemSelectionDialog = new WebInspector.FilteredListWidget(WebInspector.OpenResourceDialog._instanceForTest);
     filteredItemSelectionDialog.showAsDialog();
     filteredItemSelectionDialog.setQuery(query);
-}
+};
 
 /**
  * @constructor
@@ -87,10 +89,11 @@ WebInspector.OpenResourceDialog.show = function(sourcesView, query, defaultScore
  */
 WebInspector.SelectUISourceCodeForProjectTypesDialog = function(types, callback)
 {
-    this._types = types;
     WebInspector.FilteredUISourceCodeListDelegate.call(this);
+    this._types = types;
     this._callback = callback;
-}
+    this.populate();
+};
 
 WebInspector.SelectUISourceCodeForProjectTypesDialog.prototype = {
     /**
@@ -124,7 +127,7 @@ WebInspector.SelectUISourceCodeForProjectTypesDialog.prototype = {
     },
 
     __proto__: WebInspector.FilteredUISourceCodeListDelegate.prototype
-}
+};
 
 /**
  * @param {string} name
@@ -136,4 +139,4 @@ WebInspector.SelectUISourceCodeForProjectTypesDialog.show = function(name, types
     var filteredItemSelectionDialog = new WebInspector.FilteredListWidget(new WebInspector.SelectUISourceCodeForProjectTypesDialog(types, callback));
     filteredItemSelectionDialog.showAsDialog();
     filteredItemSelectionDialog.setQuery(name);
-}
+};

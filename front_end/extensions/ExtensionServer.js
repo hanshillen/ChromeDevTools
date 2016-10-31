@@ -49,12 +49,15 @@ WebInspector.ExtensionServer = function()
     this._sidebarPanes = [];
     /** @type {!Array.<!WebInspector.ExtensionAuditCategory>} */
     this._auditCategories = [];
+    /** @type {!Array.<!WebInspector.ExtensionTraceProvider>} */
+    this._traceProviders = [];
 
     var commands = WebInspector.extensionAPI.Commands;
 
     this._registerHandler(commands.AddAuditCategory, this._onAddAuditCategory.bind(this));
     this._registerHandler(commands.AddAuditResult, this._onAddAuditResult.bind(this));
     this._registerHandler(commands.AddRequestHeaders, this._onAddRequestHeaders.bind(this));
+    this._registerHandler(commands.AddTraceProvider, this._onAddTraceProvider.bind(this));
     this._registerHandler(commands.ApplyStyleSheet, this._onApplyStyleSheet.bind(this));
     this._registerHandler(commands.CreatePanel, this._onCreatePanel.bind(this));
     this._registerHandler(commands.CreateSidebarPane, this._onCreateSidebarPane.bind(this));
@@ -84,13 +87,13 @@ WebInspector.ExtensionServer = function()
     InspectorFrontendHost.events.addEventListener(InspectorFrontendHostAPI.Events.SetInspectedTabId, this._setInspectedTabId, this);
 
     this._initExtensions();
-}
+};
 
 /** @enum {symbol} */
 WebInspector.ExtensionServer.Events = {
     SidebarPaneAdded: Symbol("SidebarPaneAdded"),
     AuditCategoryAdded: Symbol("AuditCategoryAdded")
-}
+};
 
 WebInspector.ExtensionServer.prototype = {
     initializeExtensions: function()
@@ -154,7 +157,6 @@ WebInspector.ExtensionServer.prototype = {
         this._postNotification(WebInspector.extensionAPI.Events.InspectedURLChanged, url);
     },
 
-
     /**
      * @param {string} categoryId
      * @param {!WebInspector.ExtensionAuditCategoryResults} auditResults
@@ -171,6 +173,22 @@ WebInspector.ExtensionServer.prototype = {
     stopAuditRun: function(auditResults)
     {
         delete this._clientObjects[auditResults.id()];
+    },
+
+    /**
+     * @param {string} traceProviderId
+     */
+    startTraceRecording: function(traceProviderId)
+    {
+        this._postNotification("trace-recording-started-" + traceProviderId);
+    },
+
+     /**
+     * @param {string} traceProviderId
+     */
+    stopTraceRecording: function(traceProviderId)
+    {
+        this._postNotification("trace-recording-stopped-" + traceProviderId);
     },
 
     /**
@@ -272,33 +290,33 @@ WebInspector.ExtensionServer.prototype = {
         var page = this._expandResourcePath(port._extensionOrigin, message.page);
         var persistentId = port._extensionOrigin + message.title;
         persistentId = persistentId.replace(/\s/g, "");
-        var panelDescriptor = new WebInspector.ExtensionServerPanelDescriptor(persistentId, message.title, new WebInspector.ExtensionPanel(this, persistentId, id, page));
-        this._clientObjects[id] = panelDescriptor;
-        WebInspector.inspectorView.addPanel(panelDescriptor);
+        var panelView = new WebInspector.ExtensionServerPanelView(persistentId, message.title, new WebInspector.ExtensionPanel(this, persistentId, id, page));
+        this._clientObjects[id] = panelView;
+        WebInspector.inspectorView.addPanel(panelView);
         return this._status.OK();
     },
 
     _onShowPanel: function(message)
     {
-        var panelName = message.id;
-        var panelDescriptor = this._clientObjects[message.id];
-        if (panelDescriptor && panelDescriptor instanceof WebInspector.ExtensionServerPanelDescriptor)
-            panelName = panelDescriptor.name();
-        WebInspector.inspectorView.showPanel(panelName);
+        var panelViewId = message.id;
+        var panelView = this._clientObjects[message.id];
+        if (panelView && panelView instanceof WebInspector.ExtensionServerPanelView)
+            panelViewId = panelView.viewId();
+        WebInspector.inspectorView.showPanel(panelViewId);
     },
 
     _onCreateToolbarButton: function(message, port)
     {
-        var panelDescriptor = this._clientObjects[message.panel];
-        if (!panelDescriptor || !(panelDescriptor instanceof WebInspector.ExtensionServerPanelDescriptor))
+        var panelView = this._clientObjects[message.panel];
+        if (!panelView || !(panelView instanceof WebInspector.ExtensionServerPanelView))
             return this._status.E_NOTFOUND(message.panel);
         var button = new WebInspector.ExtensionButton(this, message.id, this._expandResourcePath(port._extensionOrigin, message.icon), message.tooltip, message.disabled);
         this._clientObjects[message.id] = button;
 
-        panelDescriptor.panel().then(appendButton);
+        panelView.widget().then(appendButton);
 
         /**
-         * @param {!WebInspector.Panel} panel
+         * @param {!WebInspector.Widget} panel
          */
         function appendButton(panel)
         {
@@ -597,6 +615,25 @@ WebInspector.ExtensionServer.prototype = {
     },
 
     /**
+     * @param {!Object} message
+     * @param {!MessagePort} port
+     */
+    _onAddTraceProvider: function(message, port)
+    {
+        var provider = new WebInspector.ExtensionTraceProvider(port._extensionOrigin, message.id, message.categoryName, message.categoryTooltip);
+        this._clientObjects[message.id] = provider;
+        this._traceProviders.push(provider);
+    },
+
+    /**
+     * @return {!Array<!WebInspector.ExtensionTraceProvider>}
+     */
+    traceProviders: function()
+    {
+        return this._traceProviders;
+    },
+
+    /**
      * @return {!Array.<!WebInspector.ExtensionAuditCategory>}
      */
     auditCategories: function()
@@ -778,7 +815,8 @@ WebInspector.ExtensionServer.prototype = {
             var extensionOrigin = originMatch[1];
             if (!this._registeredExtensions[extensionOrigin]) {
                 // See ExtensionAPI.js for details.
-                InspectorFrontendHost.setInjectedScriptForOrigin(extensionOrigin, buildExtensionAPIInjectedScript(extensionInfo, this._inspectedTabId, WebInspector.themeSupport.themeName()));
+                var injectedAPI = buildExtensionAPIInjectedScript(extensionInfo, this._inspectedTabId, WebInspector.themeSupport.themeName(), WebInspector.extensionServer["_extensionAPITestHook"]);
+                InspectorFrontendHost.setInjectedScriptForOrigin(extensionOrigin, injectedAPI);
                 this._registeredExtensions[extensionOrigin] = { name: name };
             }
             var iframe = createElement("iframe");
@@ -975,8 +1013,8 @@ WebInspector.ExtensionServer.prototype = {
 
                 }
                 if (!context) {
-                    console.warn("The JavaScript context " + contextSecurityOrigin + " was not found in the frame " + frame.url)
-                    return this._status.E_NOTFOUND(contextSecurityOrigin)
+                    console.warn("The JavaScript context " + contextSecurityOrigin + " was not found in the frame " + frame.url);
+                    return this._status.E_NOTFOUND(contextSecurityOrigin);
                 }
             } else {
                 for (var i = 0; i < executionContexts.length; ++i) {
@@ -1013,50 +1051,43 @@ WebInspector.ExtensionServer.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @constructor
  * @param {string} name
  * @param {string} title
  * @param {!WebInspector.Panel} panel
- * @implements {WebInspector.PanelDescriptor}
+ * @extends {WebInspector.SimpleView}
  */
-WebInspector.ExtensionServerPanelDescriptor = function(name, title, panel)
+WebInspector.ExtensionServerPanelView = function(name, title, panel)
 {
+    WebInspector.SimpleView.call(this, title);
     this._name = name;
-    this._title = title;
     this._panel = panel;
-}
+};
 
-WebInspector.ExtensionServerPanelDescriptor.prototype = {
+WebInspector.ExtensionServerPanelView.prototype = {
     /**
      * @override
      * @return {string}
      */
-    name: function()
+    viewId: function()
     {
         return this._name;
     },
 
     /**
      * @override
-     * @return {string}
+     * @return {!Promise.<!WebInspector.Widget>}
      */
-    title: function()
+    widget: function()
     {
-        return this._title;
+        return /** @type {!Promise.<!WebInspector.Widget>} */ (Promise.resolve(this._panel));
     },
 
-    /**
-     * @override
-     * @return {!Promise.<!WebInspector.Panel>}
-     */
-    panel: function()
-    {
-        return Promise.resolve(this._panel);
-    }
-}
+    __proto__: WebInspector.SimpleView.prototype
+};
 
 /**
  * @constructor
@@ -1087,7 +1118,7 @@ WebInspector.ExtensionStatus = function()
     this.E_NOTSUPPORTED = makeStatus.bind(null, "E_NOTSUPPORTED", "Object does not support requested operation: %s");
     this.E_PROTOCOLERROR = makeStatus.bind(null, "E_PROTOCOLERROR", "Inspector protocol error: %s");
     this.E_FAILED = makeStatus.bind(null, "E_FAILED", "Operation failed: %s");
-}
+};
 
 /**
  * @typedef {{code: string, description: string, details: !Array.<*>}}

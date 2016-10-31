@@ -46,7 +46,7 @@ WebInspector.InspectorFrontendHostStub = function()
             event.stopPropagation();
     }
     document.addEventListener("keydown", stopEventPropagation, true);
-}
+};
 
 WebInspector.InspectorFrontendHostStub.prototype = {
     /**
@@ -252,7 +252,7 @@ WebInspector.InspectorFrontendHostStub.prototype = {
      */
     loadNetworkResource: function(url, headers, streamId, callback)
     {
-        loadResourcePromise(url).then(function(text) {
+        Runtime.loadResourcePromise(url).then(function(text) {
             WebInspector.ResourceLoader.streamWrite(streamId, text);
             callback({statusCode : 200});
         }).catch(function() {
@@ -387,6 +387,14 @@ WebInspector.InspectorFrontendHostStub.prototype = {
     isUnderTest: function()
     {
         return false;
+    },
+
+    /**
+     * @override
+     * @param {function()} callback
+     */
+    reattach: function(callback)
+    {
     },
 
     /**
@@ -550,7 +558,7 @@ window.InspectorFrontendHost = InspectorFrontendHost;
         {
             WebInspector.ResourceLoader.streamWrite(id, chunk);
         }
-    }
+    };
 
     // FIXME: This file is included into both apps, since the devtools_app needs the InspectorFrontendHostAPI only,
     // so the host instance should not initialized there.

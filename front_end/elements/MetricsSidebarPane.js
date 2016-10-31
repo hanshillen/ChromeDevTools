@@ -33,7 +33,7 @@
 WebInspector.MetricsSidebarPane = function()
 {
     WebInspector.ElementsSidebarPane.call(this);
-}
+};
 
 WebInspector.MetricsSidebarPane.prototype = {
     /**
@@ -325,7 +325,7 @@ WebInspector.MetricsSidebarPane.prototype = {
 
         this._isEditingMetrics = true;
 
-        var config = new WebInspector.InplaceEditor.Config(this.editingCommitted.bind(this), this.editingCancelled.bind(this), context);
+        var config = new WebInspector.InplaceEditor.Config(this._editingCommitted.bind(this), this.editingCancelled.bind(this), context);
         WebInspector.InplaceEditor.startEditing(targetElement, config);
 
         targetElement.getComponentSelection().setBaseAndExtent(targetElement, 0, targetElement, 1);
@@ -460,11 +460,11 @@ WebInspector.MetricsSidebarPane.prototype = {
         }
     },
 
-    editingCommitted: function(element, userInput, previousContent, context)
+    _editingCommitted: function(element, userInput, previousContent, context)
     {
         this.editingEnded(element, context);
         this._applyUserInput(element, userInput, previousContent, context, true);
     },
 
     __proto__: WebInspector.ElementsSidebarPane.prototype
-}
+};

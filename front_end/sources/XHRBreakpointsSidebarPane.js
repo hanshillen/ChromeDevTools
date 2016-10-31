@@ -23,7 +23,7 @@ WebInspector.XHRBreakpointsSidebarPane = function()
     this.emptyElement.addEventListener("contextmenu", this._emptyElementContextMenu.bind(this), true);
     WebInspector.targetManager.observeTargets(this, WebInspector.Target.Capability.Browser);
     this._update();
-}
+};
 
 WebInspector.XHRBreakpointsSidebarPane.prototype = {
     /**
@@ -100,8 +100,10 @@ WebInspector.XHRBreakpointsSidebarPane.prototype = {
         if (enabled)
             this._updateBreakpointOnTarget(url, true, target);
 
-        if (this._breakpointElements.has(url))
+        if (this._breakpointElements.has(url)) {
+            this._breakpointElements.get(url)._checkboxElement.checked = enabled;
             return;
+        }
 
         var element = createElement("li");
         element._url = url;
@@ -272,4 +274,4 @@ WebInspector.XHRBreakpointsSidebarPane.prototype = {
     },
 
     __proto__: WebInspector.BreakpointsSidebarPaneBase.prototype
-}
+};

@@ -48,16 +48,18 @@ WebInspector.installDragHandle = function(element, elementDragStart, elementDrag
      */
     function onMouseDown(event)
     {
-        var dragStart = WebInspector.elementDragStart.bind(WebInspector, element, elementDragStart, elementDrag, elementDragEnd, cursor, event);
-        if (!startDelay)
+        var dragHandler = new WebInspector.DragHandler();
+        var dragStart = dragHandler.elementDragStart.bind(dragHandler, element, elementDragStart, elementDrag, elementDragEnd, cursor, event);
+        if (startDelay)
+            startTimer = setTimeout(dragStart, startDelay);
+        else
             dragStart();
-        startTimer = setTimeout(dragStart, startDelay || 0);
     }
 
     function onMouseUp()
     {
         if (startTimer)
-            clearInterval(startTimer);
+            clearTimeout(startTimer);
         startTimer = null;
     }
 
@@ -67,7 +69,7 @@ WebInspector.installDragHandle = function(element, elementDragStart, elementDrag
         element.addEventListener("mouseup", onMouseUp, false);
     if (hoverCursor !== null)
         element.style.cursor = hoverCursor || cursor;
-}
+};
 
 /**
  * @param {!Element} targetElement
@@ -79,122 +81,162 @@ WebInspector.installDragHandle = function(element, elementDragStart, elementDrag
  */
 WebInspector.elementDragStart = function(targetElement, elementDragStart, elementDrag, elementDragEnd, cursor, event)
 {
+    var dragHandler = new WebInspector.DragHandler();
+    dragHandler.elementDragStart(targetElement, elementDragStart, elementDrag, elementDragEnd, cursor, event);
+};
+
+/**
+ * @constructor
+ */
+WebInspector.DragHandler = function()
+{
+    this._elementDragMove = this._elementDragMove.bind(this);
+    this._elementDragEnd = this._elementDragEnd.bind(this);
+    this._mouseOutWhileDragging = this._mouseOutWhileDragging.bind(this);
+};
+
+WebInspector.DragHandler._glassPaneUsageCount = 0;
+
+WebInspector.DragHandler.prototype = {
+    _createGlassPane: function()
+    {
+        this._glassPaneInUse = true;
+        if (!WebInspector.DragHandler._glassPaneUsageCount++)
+            WebInspector.DragHandler._glassPane = new WebInspector.GlassPane(WebInspector.DragHandler._documentForMouseOut);
+    },
+
+    _disposeGlassPane: function()
+    {
+        if (!this._glassPaneInUse)
+            return;
+        this._glassPaneInUse = false;
+        if (--WebInspector.DragHandler._glassPaneUsageCount)
+            return;
+        WebInspector.DragHandler._glassPane.dispose();
+        delete WebInspector.DragHandler._glassPane;
+        delete WebInspector.DragHandler._documentForMouseOut;
+    }
+};
+
+/**
+ * @param {!Element} targetElement
+ * @param {?function(!MouseEvent):boolean} elementDragStart
+ * @param {function(!MouseEvent)} elementDrag
+ * @param {?function(!MouseEvent)} elementDragEnd
+ * @param {string} cursor
+ * @param {!Event} event
+ */
+WebInspector.DragHandler.prototype.elementDragStart = function(targetElement, elementDragStart, elementDrag, elementDragEnd, cursor, event)
+{
     // Only drag upon left button. Right will likely cause a context menu. So will ctrl-click on mac.
     if (event.button || (WebInspector.isMac() && event.ctrlKey))
         return;
 
-    if (WebInspector._elementDraggingEventListener)
+    if (this._elementDraggingEventListener)
         return;
 
     if (elementDragStart && !elementDragStart(/** @type {!MouseEvent} */ (event)))
         return;
 
-    if (WebInspector._elementDraggingGlassPane) {
-        WebInspector._elementDraggingGlassPane.dispose();
-        delete WebInspector._elementDraggingGlassPane;
-    }
-
     var targetDocument = event.target.ownerDocument;
+    this._elementDraggingEventListener = elementDrag;
+    this._elementEndDraggingEventListener = elementDragEnd;
+    console.assert((WebInspector.DragHandler._documentForMouseOut || targetDocument) === targetDocument,
+        "Dragging on multiple documents.");
+    WebInspector.DragHandler._documentForMouseOut = targetDocument;
+    this._dragEventsTargetDocument = targetDocument;
+    this._dragEventsTargetDocumentTop = targetDocument.defaultView.top.document;
 
-    WebInspector._elementDraggingEventListener = elementDrag;
-    WebInspector._elementEndDraggingEventListener = elementDragEnd;
-    WebInspector._mouseOutWhileDraggingTargetDocument = targetDocument;
-    WebInspector._dragEventsTargetDocument = targetDocument;
-    WebInspector._dragEventsTargetDocumentTop = targetDocument.defaultView.top.document;
-
-    targetDocument.addEventListener("mousemove", WebInspector._elementDragMove, true);
-    targetDocument.addEventListener("mouseup", WebInspector._elementDragEnd, true);
-    targetDocument.addEventListener("mouseout", WebInspector._mouseOutWhileDragging, true);
-    if (targetDocument !== WebInspector._dragEventsTargetDocumentTop)
-        WebInspector._dragEventsTargetDocumentTop.addEventListener("mouseup", WebInspector._elementDragEnd, true);
+    targetDocument.addEventListener("mousemove", this._elementDragMove, true);
+    targetDocument.addEventListener("mouseup", this._elementDragEnd, true);
+    targetDocument.addEventListener("mouseout", this._mouseOutWhileDragging, true);
+    if (targetDocument !== this._dragEventsTargetDocumentTop)
+        this._dragEventsTargetDocumentTop.addEventListener("mouseup", this._elementDragEnd, true);
 
     if (typeof cursor === "string") {
-        WebInspector._restoreCursorAfterDrag = restoreCursor.bind(null, targetElement.style.cursor);
+        this._restoreCursorAfterDrag = restoreCursor.bind(this, targetElement.style.cursor);
         targetElement.style.cursor = cursor;
         targetDocument.body.style.cursor = cursor;
     }
+    /**
+     * @param {string} oldCursor
+     * @this {WebInspector.DragHandler}
+     */
     function restoreCursor(oldCursor)
     {
         targetDocument.body.style.removeProperty("cursor");
         targetElement.style.cursor = oldCursor;
-        WebInspector._restoreCursorAfterDrag = null;
+        this._restoreCursorAfterDrag = null;
     }
     event.preventDefault();
-}
+};
 
-WebInspector._mouseOutWhileDragging = function()
+WebInspector.DragHandler.prototype._mouseOutWhileDragging = function()
 {
-    var document = WebInspector._mouseOutWhileDraggingTargetDocument;
-    WebInspector._unregisterMouseOutWhileDragging();
-    WebInspector._elementDraggingGlassPane = new WebInspector.GlassPane(document);
-}
+    this._unregisterMouseOutWhileDragging();
+    this._createGlassPane();
+};
 
-WebInspector._unregisterMouseOutWhileDragging = function()
+WebInspector.DragHandler.prototype._unregisterMouseOutWhileDragging = function()
 {
-    if (!WebInspector._mouseOutWhileDraggingTargetDocument)
+    if (!WebInspector.DragHandler._documentForMouseOut)
         return;
-    WebInspector._mouseOutWhileDraggingTargetDocument.removeEventListener("mouseout", WebInspector._mouseOutWhileDragging, true);
-    delete WebInspector._mouseOutWhileDraggingTargetDocument;
-}
+    WebInspector.DragHandler._documentForMouseOut.removeEventListener("mouseout", this._mouseOutWhileDragging, true);
+};
 
-WebInspector._unregisterDragEvents = function()
+WebInspector.DragHandler.prototype._unregisterDragEvents = function()
 {
-    if (!WebInspector._dragEventsTargetDocument)
+    if (!this._dragEventsTargetDocument)
         return;
-    WebInspector._dragEventsTargetDocument.removeEventListener("mousemove", WebInspector._elementDragMove, true);
-    WebInspector._dragEventsTargetDocument.removeEventListener("mouseup", WebInspector._elementDragEnd, true);
-    if (WebInspector._dragEventsTargetDocument !== WebInspector._dragEventsTargetDocumentTop)
-        WebInspector._dragEventsTargetDocumentTop.removeEventListener("mouseup", WebInspector._elementDragEnd, true);
-    delete WebInspector._dragEventsTargetDocument;
-    delete WebInspector._dragEventsTargetDocumentTop;
-}
+    this._dragEventsTargetDocument.removeEventListener("mousemove", this._elementDragMove, true);
+    this._dragEventsTargetDocument.removeEventListener("mouseup", this._elementDragEnd, true);
+    if (this._dragEventsTargetDocument !== this._dragEventsTargetDocumentTop)
+        this._dragEventsTargetDocumentTop.removeEventListener("mouseup", this._elementDragEnd, true);
+    delete this._dragEventsTargetDocument;
+    delete this._dragEventsTargetDocumentTop;
+};
 
 /**
  * @param {!Event} event
  */
-WebInspector._elementDragMove = function(event)
+WebInspector.DragHandler.prototype._elementDragMove = function(event)
 {
     if (event.buttons !== 1) {
-        WebInspector._elementDragEnd(event);
+        this._elementDragEnd(event);
         return;
     }
-
-    if (WebInspector._elementDraggingEventListener(/** @type {!MouseEvent} */ (event)))
-        WebInspector._cancelDragEvents(event);
-}
-
-/**
- * @param {!Event} event
- */
-WebInspector._cancelDragEvents = function(event)
-{
-    WebInspector._unregisterDragEvents();
-    WebInspector._unregisterMouseOutWhileDragging();
-
-    if (WebInspector._restoreCursorAfterDrag)
-        WebInspector._restoreCursorAfterDrag();
-
-    if (WebInspector._elementDraggingGlassPane)
-        WebInspector._elementDraggingGlassPane.dispose();
-
-    delete WebInspector._elementDraggingGlassPane;
-    delete WebInspector._elementDraggingEventListener;
-    delete WebInspector._elementEndDraggingEventListener;
-}
+    if (this._elementDraggingEventListener(/** @type {!MouseEvent} */ (event)))
+        this._cancelDragEvents(event);
+};
 
 /**
  * @param {!Event} event
  */
-WebInspector._elementDragEnd = function(event)
+WebInspector.DragHandler.prototype._cancelDragEvents = function(event)
 {
-    var elementDragEnd = WebInspector._elementEndDraggingEventListener;
+    this._unregisterDragEvents();
+    this._unregisterMouseOutWhileDragging();
 
-    WebInspector._cancelDragEvents(/** @type {!MouseEvent} */ (event));
+    if (this._restoreCursorAfterDrag)
+        this._restoreCursorAfterDrag();
 
+    this._disposeGlassPane();
+
+    delete this._elementDraggingEventListener;
+    delete this._elementEndDraggingEventListener;
+};
+
+/**
+ * @param {!Event} event
+ */
+WebInspector.DragHandler.prototype._elementDragEnd = function(event)
+{
+    var elementDragEnd = this._elementEndDraggingEventListener;
+    this._cancelDragEvents(/** @type {!MouseEvent} */ (event));
     event.preventDefault();
     if (elementDragEnd)
         elementDragEnd(/** @type {!MouseEvent} */ (event));
-}
+};
 
 /**
  * @param {!Element} element
@@ -269,7 +311,7 @@ WebInspector.installInertialDragHandle = function(element, elementDragStart, ele
         velocityY *= k;
         elementDrag(lastX, lastY);
     }
-}
+};
 
 /**
  * @constructor
@@ -284,7 +326,8 @@ WebInspector.GlassPane = function(document, dimmed)
     this.element.style.cssText = "position:absolute;top:0;bottom:0;left:0;right:0;background-color:" + background + ";z-index:" + this._zIndex + ";overflow:hidden;";
     document.body.appendChild(this.element);
     WebInspector._glassPane = this;
-}
+    // TODO(dgozman): disallow focus outside of glass pane?
+};
 
 WebInspector.GlassPane.prototype = {
     dispose: function()
@@ -292,7 +335,7 @@ WebInspector.GlassPane.prototype = {
         delete WebInspector._glassPane;
         this.element.remove();
     }
-}
+};
 
 /** @type {!WebInspector.GlassPane|undefined} */
 WebInspector._glassPane;
@@ -318,21 +361,22 @@ WebInspector.isBeingEdited = function(node)
         element = element.parentElementOrShadowHost();
     }
     return false;
-}
+};
 
 /**
  * @return {boolean}
+ * @suppressGlobalPropertiesCheck
  */
 WebInspector.isEditing = function()
 {
     if (WebInspector.__editingCount)
         return true;
 
-    var element = WebInspector.currentFocusElement();
-    if (!element)
+    var focused = document.deepActiveElement();
+    if (!focused)
         return false;
-    return element.classList.contains("text-prompt") || element.nodeName === "INPUT" || element.nodeName === "TEXTAREA";
-}
+    return focused.classList.contains("text-prompt") || focused.nodeName === "INPUT" || focused.nodeName === "TEXTAREA";
+};
 
 /**
  * @param {!Element} element
@@ -355,7 +399,7 @@ WebInspector.markBeingEdited = function(element, value)
         --WebInspector.__editingCount;
     }
     return true;
-}
+};
 
 WebInspector.CSSNumberRegex = /^(-?(?:\d+(?:\.\d+)?|\.\d+))$/;
 
@@ -382,7 +426,7 @@ WebInspector._valueModificationDirection = function(event)
             direction = "Down";
     }
     return direction;
-}
+};
 
 /**
  * @param {string} hexString
@@ -434,7 +478,7 @@ WebInspector._modifiedHexValue = function(hexString, event)
     for (var i = 0, lengthDelta = hexStrLen - resultString.length; i < lengthDelta; ++i)
         resultString = "0" + resultString;
     return resultString;
-}
+};
 
 /**
  * @param {number} number
@@ -472,7 +516,7 @@ WebInspector._modifiedFloatNumber = function(number, event)
         return null;
 
     return result;
-}
+};
 
 /**
  * @param {string} wordString
@@ -504,7 +548,7 @@ WebInspector.createReplacementString = function(wordString, event, customNumberH
         }
     }
     return replacementString;
-}
+};
 
 /**
  * @param {!Event} event
@@ -569,7 +613,7 @@ WebInspector.handleElementValueModifications = function(event, element, finishHa
         return true;
     }
     return false;
-}
+};
 
 /**
  * @param {number} ms
@@ -581,7 +625,7 @@ Number.preciseMillisToString = function(ms, precision)
     precision = precision || 0;
     var format = "%." + precision + "f\u2009ms";
     return WebInspector.UIString(format, ms);
-}
+};
 
 /** @type {!WebInspector.UIStringFormat} */
 WebInspector._microsFormat = new WebInspector.UIStringFormat("%.0f\u2009\u03bcs");
@@ -638,7 +682,7 @@ Number.millisToString = function(ms, higherResolution)
 
     var days = hours / 24;
     return WebInspector._daysFormat.format(days);
-}
+};
 
 /**
  * @param {number} seconds
@@ -650,7 +694,7 @@ Number.secondsToString = function(seconds, higherResolution)
     if (!isFinite(seconds))
         return "-";
     return Number.millisToString(seconds * 1000, higherResolution);
-}
+};
 
 /**
  * @param {number} bytes
@@ -672,7 +716,7 @@ Number.bytesToString = function(bytes)
         return WebInspector.UIString("%.1f\u2009MB", megabytes);
     else
         return WebInspector.UIString("%.0f\u2009MB", megabytes);
-}
+};
 
 /**
  * @param {number} num
@@ -685,7 +729,7 @@ Number.withThousandsSeparator = function(num)
     while (str.match(re))
         str = str.replace(re, "$1\u2009$2"); // \u2009 is a thin space.
     return str;
-}
+};
 
 /**
  * @param {string} format
@@ -708,7 +752,7 @@ WebInspector.formatLocalized = function(format, substitutions)
         return a;
     }
     return String.format(WebInspector.UIString(format), substitutions, formatters, createElement("span"), append).formattedResult;
-}
+};
 
 /**
  * @return {string}
@@ -716,7 +760,7 @@ WebInspector.formatLocalized = function(format, substitutions)
 WebInspector.openLinkExternallyLabel = function()
 {
     return WebInspector.UIString.capitalize("Open ^link in ^new ^tab");
-}
+};
 
 /**
  * @return {string}
@@ -724,7 +768,7 @@ WebInspector.openLinkExternallyLabel = function()
 WebInspector.copyLinkAddressLabel = function()
 {
     return WebInspector.UIString.capitalize("Copy ^link ^address");
-}
+};
 
 /**
  * @return {string}
@@ -732,7 +776,7 @@ WebInspector.copyLinkAddressLabel = function()
 WebInspector.anotherProfilerActiveLabel = function()
 {
     return WebInspector.UIString("Another profiler is already active");
-}
+};
 
 /**
  * @param {string|undefined} description
@@ -743,7 +787,7 @@ WebInspector.asyncStackTraceLabel = function(description)
     if (description)
         return description + " " + WebInspector.UIString("(async)");
     return WebInspector.UIString("Async Call");
-}
+};
 
 /**
  * @param {!Element} element
@@ -753,7 +797,7 @@ WebInspector.installComponentRootStyles = function(element)
     WebInspector.appendStyle(element, "ui/inspectorCommon.css");
     WebInspector.themeSupport.injectHighlightStyleSheets(element);
     element.classList.add("platform-" + WebInspector.platform());
-}
+};
 
 /**
  * @param {!Element} element
@@ -770,7 +814,7 @@ WebInspector.createShadowRootWithCoreStyles = function(element, cssFile)
         WebInspector.appendStyle(shadowRoot, cssFile);
     shadowRoot.addEventListener("focus", WebInspector._focusChanged.bind(WebInspector), true);
     return shadowRoot;
-}
+};
 
 /**
  * @param {!Document} document
@@ -780,7 +824,7 @@ WebInspector._windowFocused = function(document, event)
 {
     if (event.target.document.nodeType === Node.DOCUMENT_NODE)
         document.body.classList.remove("inactive");
-}
+};
 
 /**
  * @param {!Document} document
@@ -790,96 +834,40 @@ WebInspector._windowBlurred = function(document, event)
 {
     if (event.target.document.nodeType === Node.DOCUMENT_NODE)
         document.body.classList.add("inactive");
-}
-
-/**
- * @return {!Element}
- */
-WebInspector.previousFocusElement = function()
-{
-    return WebInspector._previousFocusElement;
-}
-
-/**
- * @return {!Element}
- */
-WebInspector.currentFocusElement = function()
-{
-    return WebInspector._currentFocusElement;
-}
+};
 
 /**
  * @param {!Event} event
  */
 WebInspector._focusChanged = function(event)
 {
-    var node = event.deepActiveElement();
-    WebInspector.Widget.focusWidgetForNode(node);
-    WebInspector.setCurrentFocusElement(node);
-}
+    var document = event.target && event.target.ownerDocument;
+    var element = document ? document.deepActiveElement() : null;
+    WebInspector.Widget.focusWidgetForNode(element);
+};
 
 /**
- * @param {!Document} document
- * @param {!Event} event
+ * @param {!Element} element
+ * @constructor
  */
-WebInspector._documentBlurred = function(document, event)
+WebInspector.ElementFocusRestorer = function(element)
 {
-    // We want to know when currentFocusElement loses focus to nowhere.
-    // This is the case when event.relatedTarget is null (no element is being focused)
-    // and document.activeElement is reset to default (this is not a window blur).
-    if (!event.relatedTarget && document.activeElement === document.body)
-        WebInspector.setCurrentFocusElement(null);
-}
+    this._element = element;
+    this._previous = element.ownerDocument.deepActiveElement();
+    element.focus();
+};
 
-WebInspector._textInputTypes = new Set(["text", "search", "tel", "url", "email", "password"]);
-WebInspector._isTextEditingElement = function(element)
-{
-    if (element instanceof HTMLInputElement)
-        return WebInspector._textInputTypes.has(element.type);
-
-    if (element instanceof HTMLTextAreaElement)
-        return true;
-
-    return false;
-}
-
-/**
- * @param {?Node} x
- */
-WebInspector.setCurrentFocusElement = function(x)
-{
-    if (WebInspector._glassPane && x && !WebInspector._glassPane.element.isAncestor(x))
-        return;
-    if (x && !x.ownerDocument.isAncestor(x))
-        return;
-    if (WebInspector._currentFocusElement !== x)
-        WebInspector._previousFocusElement = WebInspector._currentFocusElement;
-    WebInspector._currentFocusElement = x;
-
-    if (x) {
-        x.focus();
-
-        // Make a caret selection inside the new element if there isn't a range selection and there isn't already a caret selection inside.
-        // This is needed (at least) to remove caret from console when focus is moved to some element in the panel.
-        // The code below should not be applied to text fields and text areas, hence _isTextEditingElement check.
-        var selection = x.getComponentSelection();
-        if (!WebInspector._isTextEditingElement(x) && selection.isCollapsed && !x.isInsertionCaretInside()) {
-            var selectionRange = x.ownerDocument.createRange();
-            selectionRange.setStart(x, 0);
-            selectionRange.setEnd(x, 0);
-
-            selection.removeAllRanges();
-            selection.addRange(selectionRange);
-        }
-    } else if (WebInspector._previousFocusElement)
-        WebInspector._previousFocusElement.blur();
-}
-
-WebInspector.restoreFocusFromElement = function(element)
-{
-    if (element && element.isSelfOrAncestor(WebInspector.currentFocusElement()))
-        WebInspector.setCurrentFocusElement(WebInspector.previousFocusElement());
-}
+WebInspector.ElementFocusRestorer.prototype = {
+    restore: function()
+    {
+        if (!this._element)
+            return;
+        if (this._element.hasFocus() && this._previous)
+            this._previous.focus();
+        this._previous = null;
+        this._element = null;
+    }
+};
 
 /**
  * @param {!Element} element
@@ -892,7 +880,7 @@ WebInspector.highlightSearchResult = function(element, offset, length, domChange
 {
     var result = WebInspector.highlightSearchResults(element, [new WebInspector.SourceRange(offset, length)], domChanges);
     return result.length ? result[0] : null;
-}
+};
 
 /**
  * @param {!Element} element
@@ -903,7 +891,7 @@ WebInspector.highlightSearchResult = function(element, offset, length, domChange
 WebInspector.highlightSearchResults = function(element, resultRanges, changes)
 {
     return WebInspector.highlightRangesWithStyleClass(element, resultRanges, WebInspector.highlightedSearchResultClassName, changes);
-}
+};
 
 /**
  * @param {!Element} element
@@ -922,7 +910,7 @@ WebInspector.runCSSAnimationOnce = function(element, className)
 
     element.addEventListener("webkitAnimationEnd", animationEndCallback, false);
     element.classList.add(className);
-}
+};
 
 /**
  * @param {!Element} element
@@ -1007,7 +995,7 @@ WebInspector.highlightRangesWithStyleClass = function(element, resultRanges, sty
 
     }
     return highlightNodes;
-}
+};
 
 WebInspector.applyDomChanges = function(domChanges)
 {
@@ -1022,7 +1010,7 @@ WebInspector.applyDomChanges = function(domChanges)
             break;
         }
     }
-}
+};
 
 WebInspector.revertDomChanges = function(domChanges)
 {
@@ -1037,7 +1025,7 @@ WebInspector.revertDomChanges = function(domChanges)
             break;
         }
     }
-}
+};
 
 /**
  * @param {!Element} element
@@ -1059,7 +1047,7 @@ WebInspector.measurePreferredSize = function(element, containerElement)
     else
         element.remove();
     return result;
-}
+};
 
 /**
  * @constructor
@@ -1069,7 +1057,7 @@ WebInspector.InvokeOnceHandlers = function(autoInvoke)
 {
     this._handlers = null;
     this._autoInvoke = autoInvoke;
-}
+};
 
 WebInspector.InvokeOnceHandlers.prototype = {
     /**
@@ -1112,7 +1100,7 @@ WebInspector.InvokeOnceHandlers.prototype = {
                 methods[j].call(object);
         }
     }
-}
+};
 
 WebInspector._coalescingLevel = 0;
 WebInspector._postUpdateHandlers = null;
@@ -1121,7 +1109,7 @@ WebInspector.startBatchUpdate = function()
 {
     if (!WebInspector._coalescingLevel++)
         WebInspector._postUpdateHandlers = new WebInspector.InvokeOnceHandlers(false);
-}
+};
 
 WebInspector.endBatchUpdate = function()
 {
@@ -1129,7 +1117,7 @@ WebInspector.endBatchUpdate = function()
         return;
     WebInspector._postUpdateHandlers.scheduleInvoke();
     WebInspector._postUpdateHandlers = null;
-}
+};
 
 /**
  * @param {!Object} object
@@ -1140,7 +1128,7 @@ WebInspector.invokeOnceAfterBatchUpdate = function(object, method)
     if (!WebInspector._postUpdateHandlers)
         WebInspector._postUpdateHandlers = new WebInspector.InvokeOnceHandlers(true);
     WebInspector._postUpdateHandlers.add(object, method);
-}
+};
 
 /**
  * @param {!Window} window
@@ -1186,7 +1174,7 @@ WebInspector.animateFunction = function(window, func, params, frames, animationC
     }
 
     return cancelAnimation;
-}
+};
 
 /**
  * @constructor
@@ -1199,7 +1187,7 @@ WebInspector.LongClickController = function(element, callback)
     this._element = element;
     this._callback = callback;
     this._enable();
-}
+};
 
 WebInspector.LongClickController.prototype = {
     reset: function()
@@ -1261,7 +1249,7 @@ WebInspector.LongClickController.prototype = {
     },
 
     __proto__: WebInspector.Object.prototype
-}
+};
 
 /**
  * @param {!Document} document
@@ -1272,7 +1260,6 @@ WebInspector.initializeUIUtils = function(document, themeSetting)
     document.defaultView.addEventListener("focus", WebInspector._windowFocused.bind(WebInspector, document), false);
     document.defaultView.addEventListener("blur", WebInspector._windowBlurred.bind(WebInspector, document), false);
     document.addEventListener("focus", WebInspector._focusChanged.bind(WebInspector), true);
-    document.addEventListener("blur", WebInspector._documentBlurred.bind(WebInspector, document), true);
 
     if (!WebInspector.themeSupport)
         WebInspector.themeSupport = new WebInspector.ThemeSupport(themeSetting);
@@ -1281,7 +1268,7 @@ WebInspector.initializeUIUtils = function(document, themeSetting)
     var body = /** @type {!Element} */ (document.body);
     WebInspector.appendStyle(body, "ui/inspectorStyle.css");
     WebInspector.appendStyle(body, "ui/popover.css");
-}
+};
 
 /**
  * @param {string} name
@@ -1290,7 +1277,7 @@ WebInspector.initializeUIUtils = function(document, themeSetting)
 WebInspector.beautifyFunctionName = function(name)
 {
     return name || WebInspector.UIString("(anonymous)");
-}
+};
 
 /**
  * @param {string} localName
@@ -1709,7 +1696,7 @@ WebInspector.bindInput = function(input, apply, validate, numeric)
     }
 
     return setValue;
-}
+};
 
 /**
  * @constructor
@@ -1726,7 +1713,7 @@ WebInspector.ThemeSupport = function(setting)
     /** @type {!Map<string, string>} */
     this._cachedThemePatches = new Map();
     this._setting = setting;
-}
+};
 
 /**
  * @enum {number}
@@ -1931,7 +1918,7 @@ WebInspector.ThemeSupport.prototype = {
         var hue = hsla[0];
         var sat = hsla[1];
         var lit = hsla[2];
-        var alpha = hsla[3]
+        var alpha = hsla[3];
 
         switch (this._themeName) {
         case "dark":
@@ -1952,27 +1939,7 @@ WebInspector.ThemeSupport.prototype = {
         hsla[2] = Number.constrain(lit, 0, 1);
         hsla[3] = Number.constrain(alpha, 0, 1);
     }
-}
-
-/**
- * @param {?NetworkAgent.ResourcePriority} priority
- * @return {string}
- */
-WebInspector.uiLabelForPriority = function(priority)
-{
-    var labelMap = WebInspector.uiLabelForPriority._priorityToUILabel;
-    if (!labelMap) {
-        labelMap = new Map([
-            [NetworkAgent.ResourcePriority.VeryLow, WebInspector.UIString("Lowest")],
-            [NetworkAgent.ResourcePriority.Low, WebInspector.UIString("Low")],
-            [NetworkAgent.ResourcePriority.Medium, WebInspector.UIString("Medium")],
-            [NetworkAgent.ResourcePriority.High, WebInspector.UIString("High")],
-            [NetworkAgent.ResourcePriority.VeryHigh, WebInspector.UIString("Highest")]
-        ]);
-        WebInspector.uiLabelForPriority._priorityToUILabel = labelMap;
-    }
-    return labelMap.get(priority) || WebInspector.UIString("Unknown");
-}
+};
 
 /**
  * @param {string} url
@@ -2006,7 +1973,7 @@ WebInspector.linkifyURLAsNode = function(url, linkText, classes, isExternal, too
         a.setAttribute("target", "_blank");
 
     return a;
-}
+};
 
 /**
  * @param {string} article
@@ -2016,7 +1983,21 @@ WebInspector.linkifyURLAsNode = function(url, linkText, classes, isExternal, too
 WebInspector.linkifyDocumentationURLAsNode = function(article, title)
 {
     return WebInspector.linkifyURLAsNode("https://developers.google.com/web/tools/chrome-devtools/" + article, title, undefined, true);
-}
+};
+
+/**
+ * @param {string} url
+ * @return {!Promise<?Image>}
+ */
+WebInspector.loadImage = function(url)
+{
+    return new Promise(fulfill => {
+        var image = new Image();
+        image.addEventListener("load", () => fulfill(image));
+        image.addEventListener("error", () => fulfill(null));
+        image.src = url;
+    });
+};
 
 /** @type {!WebInspector.ThemeSupport} */
 WebInspector.themeSupport;

@@ -46,7 +46,7 @@ WebInspector.ClearStorageView = function(resourcesPanel)
     var footer = this._reportView.appendSection("", "clear-storage-button").appendRow();
     this._clearButton = createTextButton(WebInspector.UIString("Clear site data"), this._clear.bind(this), WebInspector.UIString("Clear site data"));
     footer.appendChild(this._clearButton);
-}
+};
 
 WebInspector.ClearStorageView.prototype = {
 
@@ -73,6 +73,18 @@ WebInspector.ClearStorageView.prototype = {
         var securityOriginManager = WebInspector.SecurityOriginManager.fromTarget(target);
         this._updateOrigin(securityOriginManager.mainSecurityOrigin());
         securityOriginManager.addEventListener(WebInspector.SecurityOriginManager.Events.MainSecurityOriginChanged, this._originChanged, this);
+    },
+
+    /**
+     * @override
+     * @param {!WebInspector.Target} target
+     */
+    targetRemoved: function(target)
+    {
+        if (this._target !== target)
+            return;
+        var securityOriginManager = WebInspector.SecurityOriginManager.fromTarget(target);
+        securityOriginManager.removeEventListener(WebInspector.SecurityOriginManager.Events.MainSecurityOriginChanged, this._originChanged, this);
     },
 
     /**
@@ -151,13 +163,5 @@ WebInspector.ClearStorageView.prototype = {
         }, 500);
     },
 
-    /**
-     * @override
-     * @param {!WebInspector.Target} target
-     */
-    targetRemoved: function(target)
-    {
-    },
-
     __proto__: WebInspector.VBox.prototype
-}
+};

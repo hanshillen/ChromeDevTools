@@ -30,6 +30,7 @@
         "Infobar.js",
         "InplaceEditor.js",
         "TextEditor.js",
+        "KeyboardShortcut.js",
         "ListWidget.js",
         "Panel.js",
         "Popover.js",
@@ -51,6 +52,7 @@
         "TabbedPane.js",
         "UIUtils.js",
         "ViewportControl.js",
+        "StaticViewportControl.js",
         "ZoomManager.js"
     ],
     "resources": [

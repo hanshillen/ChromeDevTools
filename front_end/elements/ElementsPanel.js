@@ -84,7 +84,7 @@ WebInspector.ElementsPanel = function()
     WebInspector.moduleSetting("showUAShadowDOM").addChangeListener(this._showUAShadowDOMChanged.bind(this));
     WebInspector.targetManager.addModelListener(WebInspector.DOMModel, WebInspector.DOMModel.Events.DocumentUpdated, this._documentUpdatedEvent, this);
     WebInspector.extensionServer.addEventListener(WebInspector.ExtensionServer.Events.SidebarPaneAdded, this._extensionSidebarPaneAdded, this);
-}
+};
 
 WebInspector.ElementsPanel._elementsSidebarViewTitleSymbol = Symbol("title");
 
@@ -109,9 +109,9 @@ WebInspector.ElementsPanel.prototype = {
         var filterContainerElement = hbox.createChild("div", "styles-sidebar-pane-filter-box");
         var filterInput = WebInspector.StylesSidebarPane.createPropertyFilterElement(WebInspector.UIString("Filter"), hbox, this._stylesWidget.onFilterChanged.bind(this._stylesWidget));
         filterContainerElement.appendChild(filterInput);
-        var toolbar = new WebInspector.ExtensibleToolbar("styles-sidebarpane-toolbar", hbox);
-        toolbar.element.classList.add("styles-pane-toolbar");
+        var toolbar = new WebInspector.Toolbar("styles-pane-toolbar", hbox);
         toolbar.makeToggledGray();
+        toolbar.appendLocationItems("styles-sidebarpane-toolbar");
         var toolbarPaneContainer = container.createChild("div", "styles-sidebar-toolbar-pane-container");
         this._toolbarPaneElement = createElementWithClass("div", "styles-sidebar-toolbar-pane");
         toolbarPaneContainer.appendChild(this._toolbarPaneElement);
@@ -323,14 +323,12 @@ WebInspector.ElementsPanel.prototype = {
      */
     _selectedNodeChanged: function(event)
     {
-        var selectedNode = /** @type {?WebInspector.DOMNode} */ (event.data);
+        var selectedNode = /** @type {?WebInspector.DOMNode} */ (event.data.node);
+        var focus = /** @type {boolean} */ (event.data.focus);
         for (var i = 0; i < this._treeOutlines.length; ++i) {
             if (!selectedNode || selectedNode.domModel() !== this._treeOutlines[i].domModel())
                 this._treeOutlines[i].selectDOMNode(null);
         }
-
-        if (!selectedNode && this._lastValidSelectedNode)
-            this._selectedPathOnReset = this._lastValidSelectedNode.path();
 
         this._breadcrumbs.setSelectedNode(selectedNode);
 
@@ -339,7 +337,10 @@ WebInspector.ElementsPanel.prototype = {
         if (!selectedNode)
             return;
         selectedNode.setAsInspectedNode();
-        this._lastValidSelectedNode = selectedNode;
+        if (focus) {
+            this._selectedNodeOnReset = selectedNode;
+            this._hasNonDefaultSelectedNode = true;
+        }
 
         var executionContexts = selectedNode.target().runtimeModel.executionContexts();
         var nodeFrameId = selectedNode.frameId();
@@ -382,53 +383,64 @@ WebInspector.ElementsPanel.prototype = {
             return;
         }
 
+        this._hasNonDefaultSelectedNode = false;
         WebInspector.domBreakpointsSidebarPane.restoreBreakpoints(inspectedRootDocument);
-
-        /**
-         * @this {WebInspector.ElementsPanel}
-         * @param {?WebInspector.DOMNode} candidateFocusNode
-         */
-        function selectNode(candidateFocusNode)
-        {
-            if (!candidateFocusNode)
-                candidateFocusNode = inspectedRootDocument.body || inspectedRootDocument.documentElement;
-
-            if (!candidateFocusNode)
-                return;
-
-            if (!this._pendingNodeReveal) {
-                this.selectDOMNode(candidateFocusNode);
-                if (treeOutline.selectedTreeElement)
-                    treeOutline.selectedTreeElement.expand();
-            }
-        }
-
-        /**
-         * @param {?DOMAgent.NodeId} nodeId
-         * @this {WebInspector.ElementsPanel}
-         */
-        function selectLastSelectedNode(nodeId)
-        {
-            if (this.selectedDOMNode()) {
-                // Focused node has been explicitly set while reaching out for the last selected node.
-                return;
-            }
-            var node = nodeId ? domModel.nodeForId(nodeId) : null;
-            selectNode.call(this, node);
-            this._lastSelectedNodeSelectedForTest();
-        }
 
         if (this._omitDefaultSelection)
             return;
 
-        if (this._selectedPathOnReset)
-            domModel.pushNodeByPathToFrontend(this._selectedPathOnReset, selectLastSelectedNode.bind(this));
-        else
-            selectNode.call(this, null);
-        delete this._selectedPathOnReset;
+        var savedSelectedNodeOnReset = this._selectedNodeOnReset;
+        restoreNode.call(this, domModel, this._selectedNodeOnReset);
+
+        /**
+         * @param {!WebInspector.DOMModel} domModel
+         * @param {?WebInspector.DOMNode} staleNode
+         * @this {WebInspector.ElementsPanel}
+         */
+        function restoreNode(domModel, staleNode)
+        {
+            var nodePath = staleNode ? staleNode.path() : null;
+            if (!nodePath) {
+                onNodeRestored.call(this, null);
+                return;
+            }
+            domModel.pushNodeByPathToFrontend(nodePath, onNodeRestored.bind(this));
+        }
+
+        /**
+         * @param {?DOMAgent.NodeId} restoredNodeId
+         * @this {WebInspector.ElementsPanel}
+         */
+        function onNodeRestored(restoredNodeId)
+        {
+            if (savedSelectedNodeOnReset !== this._selectedNodeOnReset)
+                return;
+            var node = restoredNodeId ? domModel.nodeForId(restoredNodeId) : null;
+            if (!node) {
+                var inspectedDocument = domModel.existingDocument();
+                node = inspectedDocument ? inspectedDocument.body || inspectedDocument.documentElement : null;
+            }
+            this._setDefaultSelectedNode(node);
+            this._lastSelectedNodeSelectedForTest();
+        }
     },
 
     _lastSelectedNodeSelectedForTest: function() { },
+
+    /**
+     * @param {?WebInspector.DOMNode} node
+     */
+    _setDefaultSelectedNode: function(node)
+    {
+        if (!node || this._hasNonDefaultSelectedNode || this._pendingNodeReveal)
+            return;
+        var treeOutline = WebInspector.ElementsTreeOutline.forDOMModel(node.domModel());
+        if (!treeOutline)
+            return;
+        this.selectDOMNode(node);
+        if (treeOutline.selectedTreeElement)
+            treeOutline.selectedTreeElement.expand();
+    },
 
     /**
      * @override
@@ -507,8 +519,7 @@ WebInspector.ElementsPanel.prototype = {
     {
         // Reset search restore.
         this._searchableView.cancelSearch();
-        WebInspector.inspectorView.setCurrentPanel(this);
-        this.selectDOMNode(node, true);
+        WebInspector.viewManager.showView("elements").then(() => this.selectDOMNode(node, true));
     },
 
     /**
@@ -720,7 +731,7 @@ WebInspector.ElementsPanel.prototype = {
 
         var treeOutline = null;
         for (var i = 0; i < this._treeOutlines.length; ++i) {
-            if (this._treeOutlines[i].selectedDOMNode() === this._lastValidSelectedNode)
+            if (this._treeOutlines[i].selectedDOMNode())
                 treeOutline = this._treeOutlines[i];
         }
         if (!treeOutline)
@@ -776,6 +787,7 @@ WebInspector.ElementsPanel.prototype = {
 
     /**
      * @param {!WebInspector.DOMNode} node
+     * @return {!Promise}
      */
     revealAndSelectNode: function(node)
     {
@@ -784,18 +796,17 @@ WebInspector.ElementsPanel.prototype = {
 
         this._omitDefaultSelection = true;
 
-        var showLayoutEditor = !!WebInspector.inspectElementModeController && WebInspector.inspectElementModeController.isInLayoutEditorMode();
-        WebInspector.inspectorView.setCurrentPanel(this, showLayoutEditor);
         node = WebInspector.moduleSetting("showUAShadowDOM").get() ? node : this._leaveUserAgentShadowDOM(node);
-        if (!showLayoutEditor)
-            node.highlightForTwoSeconds();
+        node.highlightForTwoSeconds();
 
-        this.selectDOMNode(node, true);
-        delete this._omitDefaultSelection;
+        return WebInspector.viewManager.showView("elements").then(() => {
+            this.selectDOMNode(node, true);
+            delete this._omitDefaultSelection;
 
-        if (!this._notFirstInspectElement)
-            InspectorFrontendHost.inspectElementCompleted();
-        this._notFirstInspectElement = true;
+            if (!this._notFirstInspectElement)
+                InspectorFrontendHost.inspectElementCompleted();
+            this._notFirstInspectElement = true;
+        });
     },
 
     _sidebarContextMenuEventFired: function(event)
@@ -873,12 +884,13 @@ WebInspector.ElementsPanel.prototype = {
                 showMetrics.call(this, false);
         }
 
-        this.sidebarPaneView = WebInspector.viewManager.createTabbedLocation(() => WebInspector.inspectorView.setCurrentPanel(this));
+        this.sidebarPaneView = WebInspector.viewManager.createTabbedLocation(() => WebInspector.viewManager.showView("elements"));
         var tabbedPane = this.sidebarPaneView.tabbedPane();
         tabbedPane.element.addEventListener("contextmenu", this._sidebarContextMenuEventFired.bind(this), false);
         if (this._popoverHelper)
             this._popoverHelper.hidePopover();
-        this._popoverHelper = new WebInspector.PopoverHelper(tabbedPane.element, this._getPopoverAnchor.bind(this), this._showPopover.bind(this));
+        this._popoverHelper = new WebInspector.PopoverHelper(tabbedPane.element);
+        this._popoverHelper.initializeCallbacks(this._getPopoverAnchor.bind(this), this._showPopover.bind(this));
         this._popoverHelper.setTimeout(0);
 
         if (horizontally) {
@@ -940,7 +952,7 @@ WebInspector.ElementsPanel.prototype = {
     },
 
     __proto__: WebInspector.Panel.prototype
-}
+};
 
 /**
  * @constructor
@@ -948,7 +960,7 @@ WebInspector.ElementsPanel.prototype = {
  */
 WebInspector.ElementsPanel.ContextMenuProvider = function()
 {
-}
+};
 
 WebInspector.ElementsPanel.ContextMenuProvider.prototype = {
     /**
@@ -977,13 +989,13 @@ WebInspector.ElementsPanel.ContextMenuProvider.prototype = {
         var commandCallback = WebInspector.Revealer.reveal.bind(WebInspector.Revealer, object);
         contextMenu.appendItem(WebInspector.UIString.capitalize("Reveal in Elements ^panel"), commandCallback);
     }
-}
+};
 
 /**
  * @constructor
  * @implements {WebInspector.Revealer}
  */
-WebInspector.ElementsPanel.DOMNodeRevealer = function() { }
+WebInspector.ElementsPanel.DOMNodeRevealer = function() { };
 
 WebInspector.ElementsPanel.DOMNodeRevealer.prototype = {
     /**
@@ -1027,21 +1039,20 @@ WebInspector.ElementsPanel.DOMNodeRevealer.prototype = {
                 panel._pendingNodeReveal = false;
 
                 if (resolvedNode) {
-                    panel.revealAndSelectNode(resolvedNode);
-                    resolve(undefined);
+                    panel.revealAndSelectNode(resolvedNode).then(resolve);
                     return;
                 }
                 reject(new Error("Could not resolve node to reveal."));
             }
         }
     }
-}
+};
 
 /**
  * @constructor
  * @implements {WebInspector.Revealer}
  */
-WebInspector.ElementsPanel.CSSPropertyRevealer = function() { }
+WebInspector.ElementsPanel.CSSPropertyRevealer = function() { };
 
 WebInspector.ElementsPanel.CSSPropertyRevealer.prototype = {
     /**
@@ -1054,12 +1065,7 @@ WebInspector.ElementsPanel.CSSPropertyRevealer.prototype = {
         var panel = WebInspector.ElementsPanel.instance();
         return panel._revealProperty(/** @type {!WebInspector.CSSProperty} */ (property));
     }
-}
-
-WebInspector.ElementsPanel.show = function()
-{
-    WebInspector.inspectorView.setCurrentPanel(WebInspector.ElementsPanel.instance());
-}
+};
 
 /**
  * @return {!WebInspector.ElementsPanel}
@@ -1067,13 +1073,13 @@ WebInspector.ElementsPanel.show = function()
 WebInspector.ElementsPanel.instance = function()
 {
     return /** @type {!WebInspector.ElementsPanel} */ (self.runtime.sharedInstance(WebInspector.ElementsPanel));
-}
+};
 
 /**
  * @constructor
  * @implements {WebInspector.ActionDelegate}
  */
-WebInspector.ElementsActionDelegate = function() { }
+WebInspector.ElementsActionDelegate = function() { };
 
 WebInspector.ElementsActionDelegate.prototype = {
     /**
@@ -1101,7 +1107,7 @@ WebInspector.ElementsActionDelegate.prototype = {
         }
         return false;
     }
-}
+};
 
 /**
  * @constructor
@@ -1109,7 +1115,7 @@ WebInspector.ElementsActionDelegate.prototype = {
  */
 WebInspector.ElementsPanel.PseudoStateMarkerDecorator = function()
 {
-}
+};
 
 WebInspector.ElementsPanel.PseudoStateMarkerDecorator.prototype = {
     /**
@@ -1121,4 +1127,4 @@ WebInspector.ElementsPanel.PseudoStateMarkerDecorator.prototype = {
     {
         return { color: "orange", title: WebInspector.UIString("Element state: %s", ":" + WebInspector.CSSModel.fromNode(node).pseudoState(node).join(", :")) };
     }
-}
+};

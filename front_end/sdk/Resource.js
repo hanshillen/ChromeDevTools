@@ -38,9 +38,10 @@
  * @param {!NetworkAgent.LoaderId} loaderId
  * @param {!WebInspector.ResourceType} type
  * @param {string} mimeType
- * @param {boolean=} isHidden
+ * @param {?Date} lastModified
+ * @param {?number} contentSize
  */
-WebInspector.Resource = function(target, request, url, documentURL, frameId, loaderId, type, mimeType, isHidden)
+WebInspector.Resource = function(target, request, url, documentURL, frameId, loaderId, type, mimeType, lastModified, contentSize)
 {
     WebInspector.SDKObject.call(this, target);
     this._request = request;
@@ -50,54 +51,41 @@ WebInspector.Resource = function(target, request, url, documentURL, frameId, loa
     this._loaderId = loaderId;
     this._type = type || WebInspector.resourceTypes.Other;
     this._mimeType = mimeType;
-    this._isHidden = isHidden;
+
+    this._lastModified = lastModified && lastModified.isValid() ? lastModified : null;
+    this._contentSize = contentSize;
 
     /** @type {?string} */ this._content;
     /** @type {boolean} */ this._contentEncoded;
     this._pendingContentCallbacks = [];
     if (this._request && !this._request.finished)
         this._request.addEventListener(WebInspector.NetworkRequest.Events.FinishedLoading, this._requestFinished, this);
-}
-
-/**
- * @param {?string} content
- * @param {string} mimeType
- * @param {boolean} contentEncoded
- * @param {?string=} charset
- * @return {?string}
- */
-WebInspector.Resource.contentAsDataURL = function(content, mimeType, contentEncoded, charset)
-{
-    const maxDataUrlSize = 1024 * 1024;
-    if (content === null || content.length > maxDataUrlSize)
-        return null;
-
-    return "data:" + mimeType + (charset ? ";charset=" + charset : "") + (contentEncoded ? ";base64" : "") + "," + content;
-}
-
-/**
- * @param {string} url
- * @param {string} mimeType
- * @param {!WebInspector.ContentProvider} contentProvider
- * @param {!Element} image
- */
-WebInspector.Resource.populateImageSource = function(url, mimeType, contentProvider, image)
-{
-    /**
-     * @param {?string} content
-     */
-    function onResourceContent(content)
-    {
-        var imageSrc = WebInspector.Resource.contentAsDataURL(content, mimeType, true);
-        if (imageSrc === null)
-            imageSrc = url;
-        image.src = imageSrc;
-    }
-
-    contentProvider.requestContent().then(onResourceContent);
-}
+};
 
 WebInspector.Resource.prototype = {
+    /**
+     * @return {?Date}
+     */
+    lastModified: function()
+    {
+        if (this._lastModified || !this._request)
+            return this._lastModified;
+        var lastModifiedHeader = this._request.responseLastModified();
+        var date = lastModifiedHeader ? new Date(lastModifiedHeader) : null;
+        this._lastModified = date && date.isValid() ? date : null;
+        return this._lastModified;
+    },
+
+    /**
+     * @return {?number}
+     */
+    contentSize: function()
+    {
+        if (typeof this._contentSize === "number" || !this._request)
+            return this._contentSize;
+        return this._request.resourceSize;
+    },
+
     /**
      * @return {?WebInspector.NetworkRequest}
      */
@@ -263,7 +251,19 @@ WebInspector.Resource.prototype = {
      */
     populateImageSource: function(image)
     {
-        WebInspector.Resource.populateImageSource(this._url, this._mimeType, this, image);
+        /**
+         * @param {?string} content
+         * @this {WebInspector.Resource}
+         */
+        function onResourceContent(content)
+        {
+            var imageSrc = WebInspector.ContentProvider.contentAsDataURL(content, this._mimeType, true);
+            if (imageSrc === null)
+                imageSrc = this._url;
+            image.src = imageSrc;
+        }
+
+        this.requestContent().then(onResourceContent.bind(this));
     },
 
     _requestFinished: function()
@@ -342,15 +342,6 @@ WebInspector.Resource.prototype = {
     /**
      * @return {boolean}
      */
-    isHidden: function()
-    {
-        return !!this._isHidden;
-    },
-
-
-    /**
-     * @return {boolean}
-     */
     hasTextContent: function()
     {
         if (this._type.isTextType())
@@ -361,5 +352,5 @@ WebInspector.Resource.prototype = {
     },
 
     __proto__: WebInspector.SDKObject.prototype
-}
+};
 

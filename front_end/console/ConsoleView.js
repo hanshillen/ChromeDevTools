@@ -163,7 +163,7 @@ WebInspector.ConsoleView = function()
     this._messagesElement.addEventListener("mouseup", this._updateStickToBottomOnMouseUp.bind(this), false);
     this._messagesElement.addEventListener("mouseleave", this._updateStickToBottomOnMouseUp.bind(this), false);
     this._messagesElement.addEventListener("wheel", this._updateStickToBottomOnWheel.bind(this), false);
-}
+};
 
 WebInspector.ConsoleView.persistedHistorySize = 300;
 
@@ -266,8 +266,7 @@ WebInspector.ConsoleView.prototype = {
     targetAdded: function(target)
     {
         this._viewport.invalidate();
-        var hasMultipleCotexts = WebInspector.targetManager.targets(WebInspector.Target.Capability.JS).length > 1;
-        this._showAllMessagesCheckbox.element.classList.toggle("hidden", !hasMultipleCotexts);
+        this._updateAllMessagesCheckbox();
     },
 
     /**
@@ -276,6 +275,13 @@ WebInspector.ConsoleView.prototype = {
      */
     targetRemoved: function(target)
     {
+        this._updateAllMessagesCheckbox();
+    },
+
+    _updateAllMessagesCheckbox: function()
+    {
+        var hasMultipleCotexts = WebInspector.targetManager.targets(WebInspector.Target.Capability.JS).length > 1;
+        this._showAllMessagesCheckbox.element.classList.toggle("hidden", !hasMultipleCotexts);
     },
 
     _registerWithMessageSink: function()
@@ -340,7 +346,6 @@ WebInspector.ConsoleView.prototype = {
     wasShown: function()
     {
         this._viewport.refresh();
-        this.focus();
     },
 
     focus: function()
@@ -455,7 +460,7 @@ WebInspector.ConsoleView.prototype = {
             message.timestamp = this._consoleMessages.length ? this._consoleMessages.peekLast().consoleMessage().timestamp : 0;
         var viewMessage = this._createViewMessage(message);
         message[this._viewMessageSymbol] = viewMessage;
-        var insertAt = this._consoleMessages.upperBound(viewMessage, compareTimestamps)
+        var insertAt = this._consoleMessages.upperBound(viewMessage, compareTimestamps);
         var insertedInMiddle = insertAt < this._consoleMessages.length;
         this._consoleMessages.splice(insertAt, 0, viewMessage);
 
@@ -571,7 +576,7 @@ WebInspector.ConsoleView.prototype = {
 
         var contextMenu = new WebInspector.ContextMenu(event);
         if (event.target.isSelfOrDescendant(this._promptElement)) {
-            contextMenu.show()
+            contextMenu.show();
             return;
         }
 
@@ -663,7 +668,9 @@ WebInspector.ConsoleView.prototype = {
             var lines = [];
             for (var i = 0; i < chunkSize && i + messageIndex < this.itemCount(); ++i) {
                 var message = this.itemElement(messageIndex + i);
-                lines.push(message.formattedMessage().deepTextContent());
+                var messageContent = message.contentElement().deepTextContent();
+                for (var j = 0; j < message.repeatCount(); ++j)
+                    lines.push(messageContent);
             }
             messageIndex += i;
             stream.write(lines.join("\n") + "\n", writeNextChunk.bind(this));
@@ -720,9 +727,8 @@ WebInspector.ConsoleView.prototype = {
     _messagesClicked: function(event)
     {
         var targetElement = event.deepElementFromPoint();
-        
         if (!targetElement || targetElement.isComponentSelectionCollapsed())
-            ;//this.focus();
+            ;//this.focus(); // TODO: commented out for now because it conflicts with console output keyboard naviagtion
         var groupMessage = event.target.enclosingNodeOrSelfWithClass("console-group-title");
         if (!groupMessage)
             return;
@@ -784,9 +790,6 @@ WebInspector.ConsoleView.prototype = {
         if (keyboardEvent.key === "PageUp") {
             this._updateStickToBottomOnWheel();
             return;
-        } else if (isEnterKey(keyboardEvent)) {
-            this._enterKeyPressed(keyboardEvent);
-            return;
         }
 
         var shortcut = WebInspector.KeyboardShortcut.makeKeyFromEvent(keyboardEvent);
@@ -795,21 +798,6 @@ WebInspector.ConsoleView.prototype = {
             handler();
             keyboardEvent.preventDefault();
         }
-    },
-
-    _enterKeyPressed: function(event)
-    {
-        if (event.altKey || event.ctrlKey || event.shiftKey)
-            return;
-
-        event.consume(true);
-
-        this._prompt.clearAutocomplete();
-
-        var str = this._prompt.text();
-        if (!str.length)
-            return;
-        this._appendCommand(str, true);
     },
 
     /**
@@ -830,21 +818,6 @@ WebInspector.ConsoleView.prototype = {
             message = WebInspector.ConsoleMessage.fromException(result.target(), exceptionDetails, WebInspector.ConsoleMessage.MessageType.Result, undefined, undefined);
         message.setOriginatingMessage(originatingConsoleMessage);
         result.target().consoleModel.addMessage(message);
-    },
-
-    /**
-     * @param {string} text
-     * @param {boolean} useCommandLineAPI
-     */
-    _appendCommand: function(text, useCommandLineAPI)
-    {
-        this._prompt.setText("");
-        var currentExecutionContext = WebInspector.context.flavor(WebInspector.ExecutionContext);
-        if (currentExecutionContext) {
-            WebInspector.ConsoleModel.evaluateCommandInConsole(currentExecutionContext, text, useCommandLineAPI);
-            if (WebInspector.inspectorView.currentPanel() && WebInspector.inspectorView.currentPanel().name === "console")
-                WebInspector.userMetrics.actionTaken(WebInspector.UserMetrics.Action.CommandEvaluatedInConsolePanel);
-        }
     },
 
     /**
@@ -1089,7 +1062,7 @@ WebInspector.ConsoleView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -1242,40 +1215,31 @@ WebInspector.ConsoleViewFilter.prototype = {
 WebInspector.ConsoleCommand = function(message, linkifier, nestingLevel)
 {
     WebInspector.ConsoleViewMessage.call(this, message, linkifier, nestingLevel);
-}
+};
 
 WebInspector.ConsoleCommand.prototype = {
-    /**
-     * @override
-     * @return {!Element})
-     */
-    searchableElement: function()
-    {
-        return this.contentElement();
-    },
-
     /**
      * @override
      * @return {!Element}
      */
     contentElement: function()
     {
-        if (!this._element) {
-            this._element = createElementWithClass("div", "console-user-command");
-            this._element.message = this;
+        if (!this._contentElement) {
+            this._contentElement = createElementWithClass("div", "console-user-command");
+            this._contentElement.message = this;
 
             this._formattedCommand = createElementWithClass("span", "console-message-text source-code");
             this._formattedCommand.textContent = this.text.replaceControlCharacters();
-            this._element.appendChild(this._formattedCommand);
+            this._contentElement.appendChild(this._formattedCommand);
 
             if (this._formattedCommand.textContent.length < WebInspector.ConsoleCommand.MaxLengthToIgnoreHighlighter) {
                 var javascriptSyntaxHighlighter = new WebInspector.DOMSyntaxHighlighter("text/javascript", true);
-                javascriptSyntaxHighlighter.syntaxHighlightNode(this._formattedCommand).then(this._updateSearch.bind(this))
+                javascriptSyntaxHighlighter.syntaxHighlightNode(this._formattedCommand).then(this._updateSearch.bind(this));
             } else {
                 this._updateSearch();
             }
         }
-        return this._element;
+        return this._contentElement;
     },
 
     _updateSearch: function()
@@ -1284,7 +1248,7 @@ WebInspector.ConsoleCommand.prototype = {
     },
 
     __proto__: WebInspector.ConsoleViewMessage.prototype
-}
+};
 
 /**
  * The maximum length before strings are considered too long for syntax highlighting.
@@ -1303,19 +1267,9 @@ WebInspector.ConsoleCommand.MaxLengthToIgnoreHighlighter = 10000;
 WebInspector.ConsoleCommandResult = function(message, linkifier, nestingLevel)
 {
     WebInspector.ConsoleViewMessage.call(this, message, linkifier, nestingLevel);
-}
+};
 
 WebInspector.ConsoleCommandResult.prototype = {
-    /**
-     * @override
-     * @param {!WebInspector.RemoteObject} array
-     * @return {boolean}
-     */
-    useArrayPreviewInFormatter: function(array)
-    {
-        return false;
-    },
-
     /**
      * @override
      * @return {!Element}
@@ -1329,7 +1283,7 @@ WebInspector.ConsoleCommandResult.prototype = {
     },
 
     __proto__: WebInspector.ConsoleViewMessage.prototype
-}
+};
 
 /**
  * @constructor
@@ -1341,7 +1295,7 @@ WebInspector.ConsoleGroup = function(parentGroup, groupMessage)
     this._parentGroup = parentGroup;
     this._nestingLevel = parentGroup ? parentGroup.nestingLevel() + 1 : 0;
     this._messagesHidden = groupMessage && groupMessage.collapsed() || this._parentGroup && this._parentGroup.messagesHidden();
-}
+};
 
 /**
  * @return {!WebInspector.ConsoleGroup}
@@ -1349,7 +1303,7 @@ WebInspector.ConsoleGroup = function(parentGroup, groupMessage)
 WebInspector.ConsoleGroup.createTopGroup = function()
 {
     return new WebInspector.ConsoleGroup(null, null);
-}
+};
 
 WebInspector.ConsoleGroup.prototype = {
     /**
@@ -1375,7 +1329,7 @@ WebInspector.ConsoleGroup.prototype = {
     {
         return this._parentGroup || this;
     },
-}
+};
 
 /**
  * @return {!WebInspector.ConsoleView}
@@ -1385,7 +1339,7 @@ WebInspector.ConsoleView.instance = function()
     if (!WebInspector.ConsoleView._instance)
         WebInspector.ConsoleView._instance = new WebInspector.ConsoleView();
     return WebInspector.ConsoleView._instance;
-}
+};
 
 WebInspector.ConsoleView.clearConsole = function()
 {
@@ -1393,7 +1347,7 @@ WebInspector.ConsoleView.clearConsole = function()
         target.runtimeModel.discardConsoleEntries();
         target.consoleModel.requestClearMessages();
     }
-}
+};
 
 /**
  * @constructor
@@ -1401,7 +1355,7 @@ WebInspector.ConsoleView.clearConsole = function()
  */
 WebInspector.ConsoleView.ActionDelegate = function()
 {
-}
+};
 
 WebInspector.ConsoleView.ActionDelegate.prototype = {
     /**
@@ -1425,7 +1379,7 @@ WebInspector.ConsoleView.ActionDelegate.prototype = {
         }
         return false;
     }
-}
+};
 
 /**
 * @typedef {{messageIndex: number, matchIndex: number}}

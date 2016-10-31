@@ -420,6 +420,7 @@ WebInspector.DeviceModeView.prototype = {
             var ctx = canvas.getContext("2d");
             canvas.width = outlineRect.width;
             canvas.height = outlineRect.height;
+            ctx.imageSmoothingEnabled = false;
 
             var promise = Promise.resolve();
             if (this._model.outlineImage())
@@ -486,7 +487,7 @@ WebInspector.DeviceModeView.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
 
 /**
  * @constructor
@@ -504,7 +505,7 @@ WebInspector.DeviceModeView.Ruler = function(horizontal, applyCallback)
     this._count = 0;
     this._throttler = new WebInspector.Throttler(0);
     this._applyCallback = applyCallback;
-}
+};
 
 WebInspector.DeviceModeView.Ruler.prototype = {
     /**
@@ -592,4 +593,4 @@ WebInspector.DeviceModeView.Ruler.prototype = {
     },
 
     __proto__: WebInspector.VBox.prototype
-}
+};
